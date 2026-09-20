@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { User, UserRole } from './types';
 import { Header } from './components/Header';
 import { QuickSwitch } from './components/QuickSwitch';
-import { MobileBottomNav } from './components/MobileBottomNav';
+import { MyInfoModal } from './components/MyInfoModal';
 import { LoginPage } from './pages/LoginPage';
 import { LobbyPage } from './pages/LobbyPage';
 import { ServerAdminPage } from './pages/ServerAdminPage';
@@ -15,7 +15,9 @@ export function App() {
   const [currentPage, setCurrentPage] = useState<string>('login');
   const [selectedClubId, setSelectedClubId] = useState<number | null>(null);
   const [selectedClubTab, setSelectedClubTab] = useState<'polls' | 'posts' | 'schedules' | 'photos'>('polls');
+  const [showMyInfoModal, setShowMyInfoModal] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(true);
+
 
   // Restore authenticated session
   useEffect(() => {
@@ -126,7 +128,7 @@ export function App() {
   const isServerAdminView = currentPage === 'server-admin';
 
   return (
-    <div className={`app-container ${isServerAdminView ? 'full-width' : ''} has-quick-switch`}>
+    <div className={`app-container ${isServerAdminView ? 'full-width' : ''}`}>
       {/* Top Header for non-server-admin full pages or server admin toggle */}
       {user && currentPage !== 'login' && (
         <Header
@@ -134,11 +136,12 @@ export function App() {
           currentPage={currentPage}
           onNavigate={(page) => setCurrentPage(page)}
           onLogout={handleLogout}
+          onOpenMyInfo={() => setShowMyInfoModal(true)}
         />
       )}
 
       {/* Main Page Routing */}
-      <main style={{ flex: 1 }} className={user && currentPage !== 'login' ? 'content-with-bottom-nav' : ''}>
+      <main style={{ flex: 1 }}>
         {!user || currentPage === 'login' ? (
           <LoginPage onLoginSuccess={handleLoginSuccess} />
         ) : currentPage === 'server-admin' ? (
@@ -161,23 +164,14 @@ export function App() {
         )}
       </main>
 
-      {/* Mobile Bottom Navigation (for logged in members) */}
-      {user && currentPage !== 'login' && !isServerAdminView && (
-        <MobileBottomNav
-          currentPage={currentPage}
+      {/* My Info & Cell Change Modal */}
+      {showMyInfoModal && user && (
+        <MyInfoModal
           user={user}
-          onNavigate={(page) => setCurrentPage(page)}
-          onOpenClubs={() => {
-            if (currentPage === 'lobby') {
-              const el = document.getElementById('clubs-section');
-              if (el) el.scrollIntoView({ behavior: 'smooth' });
-            } else {
-              setCurrentPage('lobby');
-              setTimeout(() => {
-                const el = document.getElementById('clubs-section');
-                if (el) el.scrollIntoView({ behavior: 'smooth' });
-              }, 120);
-            }
+          onClose={() => setShowMyInfoModal(false)}
+          onUserUpdated={(updatedUser, newToken) => {
+            setUser(updatedUser);
+            if (newToken) setToken(newToken);
           }}
         />
       )}
@@ -189,4 +183,5 @@ export function App() {
 }
 
 export default App;
+
 

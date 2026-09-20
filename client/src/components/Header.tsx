@@ -1,15 +1,16 @@
 import React from 'react';
 import { User } from '../types';
-import { Server, LogOut, Settings } from 'lucide-react';
+import { Server, LogOut, Settings, User as UserIcon } from 'lucide-react';
 
 interface HeaderProps {
   user: User | null;
   currentPage: string;
   onNavigate: (page: string) => void;
   onLogout: () => void;
+  onOpenMyInfo: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ user, currentPage, onNavigate, onLogout }) => {
+export const Header: React.FC<HeaderProps> = ({ user, currentPage, onNavigate, onLogout, onOpenMyInfo }) => {
   if (!user) return null;
 
   return (
@@ -27,8 +28,12 @@ export const Header: React.FC<HeaderProps> = ({ user, currentPage, onNavigate, o
       </div>
 
       <div className="header-actions">
-        {/* User Badge */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px' }}>
+        {/* User Badge (Clickable to open My Info) */}
+        <div 
+          onClick={onOpenMyInfo}
+          style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px', cursor: 'pointer' }}
+          title="클릭하여 내 정보 및 소속 셀 변경"
+        >
           <span style={{ fontWeight: '700', color: 'var(--color-text-main)' }}>{user.name}</span>
           <span style={{ color: 'var(--color-text-light)', fontSize: '11px' }}>({user.cell_name})</span>
           
@@ -43,13 +48,34 @@ export const Header: React.FC<HeaderProps> = ({ user, currentPage, onNavigate, o
           )}
         </div>
 
+        {/* My Info Button */}
+        <button
+          className="btn btn-sm btn-secondary"
+          onClick={onOpenMyInfo}
+          title="내 정보 및 소속 셀 변경"
+          style={{
+            padding: '5px 8px',
+            borderRadius: '8px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+            fontSize: '11.5px',
+            fontWeight: '700',
+            background: '#f8fafc',
+            border: '1px solid var(--color-border)'
+          }}
+        >
+          <UserIcon size={14} color="var(--color-primary)" />
+          <span>내 정보</span>
+        </button>
+
         {/* Head Admin & Media Admin Button */}
         {(user.role === 'head_admin' || user.role === 'media_admin') && (
           <button
             className={`btn btn-sm ${currentPage === 'head-admin' ? 'btn-secondary' : 'btn-admin'}`}
             onClick={() => onNavigate(currentPage === 'head-admin' ? 'lobby' : 'head-admin')}
             title="관리 창"
-            style={{ padding: '5px 12px', borderRadius: '8px' }}
+            style={{ padding: '5px 10px', borderRadius: '8px' }}
           >
             <Settings size={14} />
             <span>{currentPage === 'head-admin' ? '로비로' : '관리'}</span>

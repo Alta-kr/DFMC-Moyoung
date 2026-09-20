@@ -1,6 +1,8 @@
 import { Router, Request, Response } from 'express';
+import jwt from 'jsonwebtoken';
 import { db } from '../db.js';
-import { AuthRequest, authenticateToken } from '../middleware/auth.js';
+import { AuthRequest, authenticateToken, JWT_SECRET } from '../middleware/auth.js';
+
 
 export const lobbyRouter = Router();
 
@@ -93,8 +95,14 @@ lobbyRouter.post('/update-cell', authenticateToken, (req: AuthRequest, res: Resp
 
   db.prepare('UPDATE users SET cell_name = ?, cell_verified = 1 WHERE id = ?').run(cell_name.trim(), req.user?.id);
 
+  const updatedUser = db.prepare('SELECT id, username, name, role, cell_name, cell_verified FROM users WHERE id = ?').get(req.user?.id) as any;
+  const token = jwt.sign(updatedUser, JWT_SECRET, { expiresIn: '7d' });
+
   res.json({
-    message: '소속 셀이 성공적으로 갱신되었습니다.',
+    message: '소속 셀이 성공적으로 변경되었습니다.',
     cell_name: cell_name.trim(),
+    user: updatedUser,
+    token,
   });
 });
+
