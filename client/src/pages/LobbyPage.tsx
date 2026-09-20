@@ -155,7 +155,7 @@ export const LobbyPage: React.FC<LobbyPageProps> = ({ user, onUpdateUser, onNavi
 
       {/* 5. Highlight Polls Section ("🔥 지금 투표 진행 중인 모영" - 마감 임박순 정렬) */}
       {polls.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        <div id="active-polls-section" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <Flame size={18} color="#ea580c" />
@@ -232,7 +232,7 @@ export const LobbyPage: React.FC<LobbyPageProps> = ({ user, onUpdateUser, onNavi
       )}
 
       {/* 6. Clubs Section */}
-      <div>
+      <div id="clubs-section">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
           <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--color-text-main)' }}>
             우리교회 모영 목록 ({clubs.length}개)

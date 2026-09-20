@@ -3,13 +3,18 @@ import path from 'path';
 import fs from 'fs';
 import bcrypt from 'bcryptjs';
 
-const dataDir = path.join(process.cwd(), 'data');
+const currentDir = typeof __dirname !== 'undefined' ? __dirname : path.join(process.cwd(), 'src');
+export const serverRoot = path.resolve(currentDir, '..');
+
+export const dataDir = path.join(serverRoot, 'data');
 if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir, { recursive: true });
 }
 
 const dbPath = path.join(dataDir, 'dfmc.db');
 export const db = new Database(dbPath);
+
+
 
 // Enable WAL mode for better concurrency
 db.pragma('journal_mode = WAL');
@@ -155,6 +160,40 @@ export function initDb() {
       caption TEXT DEFAULT '',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS club_post_comments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      post_id INTEGER NOT NULL,
+      parent_comment_id INTEGER DEFAULT NULL,
+      user_id INTEGER NOT NULL,
+      user_name TEXT NOT NULL,
+      user_cell TEXT NOT NULL,
+      content TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS club_reactions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      target_type TEXT NOT NULL, -- 'post' or 'comment'
+      target_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL,
+      emoji TEXT NOT NULL, -- 'amen', 'heart', 'like', 'fire'
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(target_type, target_id, user_id, emoji)
+    );
+
+    CREATE TABLE IF NOT EXISTS club_manager_handover_votes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      club_id INTEGER NOT NULL,
+      proposer_id INTEGER NOT NULL,
+      proposer_name TEXT NOT NULL,
+      target_user_id INTEGER NOT NULL,
+      target_user_name TEXT NOT NULL,
+      action_type TEXT NOT NULL, -- 'dismiss' | 'appoint'
+      agreed_user_ids TEXT DEFAULT '[]', -- JSON array of user IDs
+      status TEXT DEFAULT 'pending', -- 'pending' | 'completed' | 'rejected'
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
   `);
 
   // Initialize server_security row
@@ -253,11 +292,21 @@ export function initDb() {
     insertClub.run('볼링 모영', '🎳', '남녀노소 누구나 즐겁게 스트라이크를 치며 스트레스를 날려요!', '최영호, 김지은, 정예준', 19);
     insertClub.run('독서 모영', '📚', '한 달에 한 권 신앙 서적과 인문학 도서를 읽고 마음을 나누는 시간.', '정다은, 최시우, 강하준', 24);
   } else {
+    // Ensure all 4 major clubs exist
+    const hasFutsal = db.prepare("SELECT id FROM clubs WHERE name = '풋살 모영'").get();
+    if (!hasFutsal) {
+      db.prepare(`
+        INSERT INTO clubs (id, name, icon, description, manager_names, member_count)
+        VALUES (1, '풋살 모영', '⚽', '풋살과 축구를 통해 건강과 은혜로운 교제를 나누는 모임입니다.', '이주환, 강동원, 김민준', 28)
+      `).run();
+    }
+
     // Ensure all 4 clubs have 3 managers each from test users
     db.prepare("UPDATE clubs SET manager_names = '이주환, 강동원, 김민준' WHERE name = '풋살 모영'").run();
     db.prepare("UPDATE clubs SET manager_names = '박민수, 이서준, 박도윤' WHERE name = '배드민턴 모영'").run();
     db.prepare("UPDATE clubs SET manager_names = '최영호, 김지은, 정예준' WHERE name = '볼링 모영'").run();
     db.prepare("UPDATE clubs SET manager_names = '정다은, 최시우, 강하준' WHERE name = '독서 모영'").run();
+
 
     // Migration: Update existing clubs to Moyoung branding
     db.prepare("UPDATE clubs SET name = replace(name, '동호회', '모영') WHERE name LIKE '%동호회%'").run();
@@ -510,4 +559,39 @@ export function initDb() {
       '따뜻한 커피와 함께한 은혜로운 책 나눔의 시간 ☕'
     );
   }
+
+  // --- Seed Comments & Replies ---
+  const commentCount = db.prepare('SELECT COUNT(*) as count FROM club_post_comments').get() as { count: number };
+  if (commentCount.count === 0) {
+    const insertComment = db.prepare(`
+      INSERT INTO club_post_comments (post_id, parent_comment_id, user_id, user_name, user_cell, content)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `);
+
+    // Comment on Futsal Post 1
+    const post1 = db.prepare('SELECT id FROM club_posts WHERE club_id = 1 ORDER BY id ASC LIMIT 1').get() as any;
+    if (post1) {
+      const c1 = insertComment.run(post1.id, null, 5, '강동원', '1청년부 1셀', '이번 주 토요일 비 안 오면 좋겠네요! 음료수는 제가 준비해 가겠습니다 🥤');
+      insertComment.run(post1.id, c1.lastInsertRowid, 4, '이주환', '1청년부 1셀', '동원 형제님 감사합니다! 토요일에 봬요 👍');
+      insertComment.run(post1.id, null, 6, '김민준', '1청년부 2셀', '풋살화 새로 샀는데 얼른 뛰고 싶습니다 ㅎㅎ');
+    }
+  }
+
+  // --- Seed Reactions ---
+  const reactionCount = db.prepare('SELECT COUNT(*) as count FROM club_reactions').get() as { count: number };
+  if (reactionCount.count === 0) {
+    const insertReaction = db.prepare(`
+      INSERT OR IGNORE INTO club_reactions (target_type, target_id, user_id, emoji)
+      VALUES (?, ?, ?, ?)
+    `);
+
+    const posts = db.prepare('SELECT id FROM club_posts LIMIT 4').all() as any[];
+    if (posts.length > 0) {
+      insertReaction.run('post', posts[0].id, 4, 'fire');
+      insertReaction.run('post', posts[0].id, 5, 'heart');
+      insertReaction.run('post', posts[0].id, 6, 'amen');
+      insertReaction.run('post', posts[0].id, 7, 'like');
+    }
+  }
 }
+

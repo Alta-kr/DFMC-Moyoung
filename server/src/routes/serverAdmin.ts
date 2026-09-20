@@ -1,8 +1,9 @@
 import { Router, Response } from 'express';
 import fs from 'fs';
 import path from 'path';
-import { db } from '../db.js';
+import { db, dataDir, serverRoot } from '../db.js';
 import { AuthRequest, authenticateToken, requireServerAdmin } from '../middleware/auth.js';
+
 
 export const serverAdminRouter = Router();
 
@@ -38,15 +39,12 @@ serverAdminRouter.get('/metrics', (req: AuthRequest, res: Response) => {
   // Total members
   const memberCount = db.prepare('SELECT COUNT(*) as count FROM users').get() as { count: number };
 
-  // Storage calculation (DB file + uploads folder)
-  const dbPath = path.join(process.cwd(), 'data', 'dfmc.db');
-  let dbSize = 0;
-  if (fs.existsSync(dbPath)) {
-    dbSize = fs.statSync(dbPath).size;
-  }
+  // Storage calculation (DB data folder + uploads folder)
+  const dbSize = getFolderSize(dataDir);
 
-  const uploadsDir = path.join(process.cwd(), 'uploads');
+  const uploadsDir = path.join(serverRoot, 'uploads');
   const uploadSize = getFolderSize(uploadsDir);
+
 
   const totalUsedBytes = dbSize + uploadSize;
   const storageLimitBytes = 1024 * 1024 * 1024; // 1 GB (1,073,741,824 bytes)

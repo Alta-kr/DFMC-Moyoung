@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import path from 'path';
 import fs from 'fs';
-import { initDb } from './db.js';
+import { initDb, serverRoot } from './db.js';
 import { trafficLogger } from './middleware/auth.js';
 import { authRouter } from './routes/auth.js';
 import { serverAdminRouter } from './routes/serverAdmin.js';
@@ -17,10 +17,11 @@ const PORT = process.env.PORT || 5000;
 initDb();
 
 // Upload directory setup
-const uploadsDir = path.join(process.cwd(), 'uploads');
+const uploadsDir = path.join(serverRoot, 'uploads');
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
+
 
 // Middleware
 app.use(cors({
@@ -45,6 +46,22 @@ app.use('/api/clubs', clubsRouter);
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', time: new Date().toISOString() });
 });
+
+// Serve client production build if available
+const clientDistDir = path.join(serverRoot, '..', 'client', 'dist');
+const altClientDistDir = path.join(process.cwd(), 'client', 'dist');
+const targetDist = fs.existsSync(clientDistDir) ? clientDistDir : fs.existsSync(altClientDistDir) ? altClientDistDir : null;
+
+
+if (targetDist) {
+  app.use(express.static(targetDist));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api') || req.path.startsWith('/uploads')) {
+      return next();
+    }
+    res.sendFile(path.join(targetDist, 'index.html'));
+  });
+}
 
 app.listen(PORT, () => {
   console.log(`🚀 DFMC Moyoung Server running on http://localhost:${PORT}`);

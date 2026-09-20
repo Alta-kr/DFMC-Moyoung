@@ -115,6 +115,31 @@ export interface ClubPollItem {
   is_expired: boolean;
 }
 
+export interface ClubCommentItem {
+  id: number;
+  post_id: number;
+  parent_comment_id?: number | null;
+  user_id: number;
+  user_name: string;
+  user_cell: string;
+  content: string;
+  created_at: string;
+}
+
+export interface ManagerHandoverVoteItem {
+  id: number;
+  club_id: number;
+  proposer_id: number;
+  proposer_name: string;
+  target_user_id: number;
+  target_user_name: string;
+  action_type: 'appoint' | 'dismiss';
+  agreed_user_ids: number[];
+  has_agreed: boolean;
+  status: 'pending' | 'completed' | 'rejected';
+  created_at: string;
+}
+
 export interface ClubPostItem {
   id: number;
   club_id: number;
@@ -124,6 +149,9 @@ export interface ClubPostItem {
   content: string;
   image_url?: string;
   created_at: string;
+  comments?: ClubCommentItem[];
+  reactions?: Record<string, number>;
+  my_reactions?: string[];
 }
 
 export interface ClubScheduleItem {
@@ -156,4 +184,7 @@ export interface ClubDetailData {
   posts: ClubPostItem[];
   schedules: ClubScheduleItem[];
   photos: ClubPhotoItem[];
+  handoverVotes?: ManagerHandoverVoteItem[];
+  churchMembers?: MemberItem[];
 }
+

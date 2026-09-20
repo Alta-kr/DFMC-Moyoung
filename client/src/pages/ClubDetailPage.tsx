@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { User, Club, ClubDetailData, ClubPollItem, ClubPostItem, ClubScheduleItem, ClubPhotoItem } from '../types';
+import { User, Club, ClubDetailData, ClubPollItem, ClubPostItem, ClubScheduleItem, ClubPhotoItem, ClubCommentItem, ManagerHandoverVoteItem, MemberItem } from '../types';
 import { 
   ArrowLeft, Edit3, Vote, MessageSquare, Calendar, Image as ImageIcon, 
   Plus, Check, X, Trash2, MapPin, DollarSign, Clock, Users,
-  Send, Sparkles, AlertCircle, CheckCircle2, ChevronDown, ChevronUp
+  Send, Sparkles, AlertCircle, CheckCircle2, ChevronDown, ChevronUp,
+  CornerDownRight, ThumbsUp, Flame, Heart, Smile, UserCheck, UserMinus, Settings, Handshake
 } from 'lucide-react';
 
 interface ClubDetailPageProps {
@@ -38,9 +39,20 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
   const [pollOptions, setPollOptions] = useState<string[]>(['참석', '불참']);
   const [pollEndDate, setPollEndDate] = useState('');
 
-  // Feed Post
+  // Feed Post, Comments & Reactions
   const [postContent, setPostContent] = useState('');
   const [postImageUrl, setPostImageUrl] = useState('');
+  const [openComments, setOpenComments] = useState<Record<number, boolean>>({});
+  const [commentInputs, setCommentInputs] = useState<Record<number, string>>({});
+  const [replyInputs, setReplyInputs] = useState<Record<number, string>>({});
+  const [replyingToId, setReplyingToId] = useState<number | null>(null);
+
+  // Handover Modal
+  const [showHandoverModal, setShowHandoverModal] = useState(false);
+  const [handoverActionType, setHandoverActionType] = useState<'appoint' | 'dismiss'>('appoint');
+  const [handoverTargetUserId, setHandoverTargetUserId] = useState<number | null>(null);
+  const [handoverSearch, setHandoverSearch] = useState('');
+
 
   // Schedule Modal
   const [showSchedModal, setShowSchedModal] = useState(false);
@@ -217,6 +229,103 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
         headers: { Authorization: `Bearer ${token}` },
       });
       const resData = await res.json();
+      flash(resData.message);
+      loadClubData();
+    } catch (err: any) {
+      flashErr(err.message);
+    }
+  };
+
+  // Reactions Handler
+  const handleToggleReaction = async (targetType: 'post' | 'comment', targetId: number, emoji: string) => {
+    try {
+      const res = await fetch(`/api/clubs/${clubId}/reactions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ targetType, targetId, emoji }),
+      });
+      if (!res.ok) throw new Error('반응 처리에 실패했습니다.');
+      loadClubData();
+    } catch (err: any) {
+      flashErr(err.message);
+    }
+  };
+
+  // Comment Handlers
+  const handleAddComment = async (postId: number, parentCommentId: number | null = null) => {
+    const text = parentCommentId ? (replyInputs[parentCommentId] || '') : (commentInputs[postId] || '');
+    if (!text.trim()) return;
+
+    try {
+      const res = await fetch(`/api/clubs/${clubId}/posts/${postId}/comments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ content: text.trim(), parent_comment_id: parentCommentId }),
+      });
+      const resData = await res.json();
+      if (!res.ok) throw new Error(resData.error);
+      flash(resData.message);
+
+      if (parentCommentId) {
+        setReplyInputs(prev => ({ ...prev, [parentCommentId]: '' }));
+        setReplyingToId(null);
+      } else {
+        setCommentInputs(prev => ({ ...prev, [postId]: '' }));
+      }
+      setOpenComments(prev => ({ ...prev, [postId]: true }));
+      loadClubData();
+    } catch (err: any) {
+      flashErr(err.message);
+    }
+  };
+
+  const handleDeleteComment = async (commentId: number) => {
+    if (!confirm('댓글을 삭제하시겠습니까?')) return;
+    try {
+      const res = await fetch(`/api/clubs/${clubId}/comments/${commentId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const resData = await res.json();
+      flash(resData.message);
+      loadClubData();
+    } catch (err: any) {
+      flashErr(err.message);
+    }
+  };
+
+  // Handover Handlers
+  const handleProposeHandover = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!handoverTargetUserId) {
+      flashErr('대상 성도를 선택해주세요.');
+      return;
+    }
+    try {
+      const res = await fetch(`/api/clubs/${clubId}/handover/propose`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ targetUserId: handoverTargetUserId, actionType: handoverActionType }),
+      });
+      const resData = await res.json();
+      if (!res.ok) throw new Error(resData.error);
+      flash(resData.message);
+      setShowHandoverModal(false);
+      setHandoverTargetUserId(null);
+      loadClubData();
+    } catch (err: any) {
+      flashErr(err.message);
+    }
+  };
+
+  const handleAgreeHandover = async (voteId: number) => {
+    try {
+      const res = await fetch(`/api/clubs/${clubId}/handover/${voteId}/agree`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const resData = await res.json();
+      if (!res.ok) throw new Error(resData.error);
       flash(resData.message);
       loadClubData();
     } catch (err: any) {
@@ -457,6 +566,69 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
                 <span style={{ opacity: 0.75 }}>미지정</span>
               )}
             </div>
+
+            {/* Manager Actions (소개 수정 & 총무 협의) */}
+            {isManager && (
+              <div style={{ display: 'flex', gap: '8px', marginTop: '12px', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowEditModal(true)}
+                  className="btn btn-sm"
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.2)',
+                    backdropFilter: 'blur(6px)',
+                    color: 'white',
+                    border: '1px solid rgba(255, 255, 255, 0.4)',
+                    fontSize: '12px',
+                    padding: '5px 12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    borderRadius: '8px'
+                  }}
+                >
+                  <Edit3 size={13} />
+                  모영 소개 수정
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowHandoverModal(true)}
+                  className="btn btn-sm"
+                  style={{
+                    background: data?.handoverVotes && data.handoverVotes.length > 0 ? '#fef08a' : 'rgba(255, 255, 255, 0.2)',
+                    color: data?.handoverVotes && data.handoverVotes.length > 0 ? '#854d0e' : 'white',
+                    border: '1px solid rgba(255, 255, 255, 0.4)',
+                    fontSize: '12px',
+                    padding: '5px 12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    borderRadius: '8px',
+                    fontWeight: '700'
+                  }}
+                >
+                  <Handshake size={13} />
+                  총무 협의 및 위임
+                  {data?.handoverVotes && data.handoverVotes.length > 0 && (
+                    <span style={{
+                      background: '#ef4444',
+                      color: 'white',
+                      borderRadius: '50%',
+                      width: '17px',
+                      height: '17px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '10px',
+                      marginLeft: '3px'
+                    }}>
+                      {data.handoverVotes.length}
+                    </span>
+                  )}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -848,6 +1020,248 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
                       }}
                       onClick={() => setLightboxPhoto(post.image_url!)}
                     />
+                  )}
+
+                  {/* Reaction Bar & Comments Toggle */}
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: '6px',
+                    paddingTop: '8px',
+                    marginTop: '4px',
+                    borderTop: '1px solid #f1f5f9'
+                  }}>
+                    {/* Emoji Reaction Buttons */}
+                    <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+                      {[
+                        { emoji: 'amen', label: '🙏 아멘' },
+                        { emoji: 'heart', label: '❤️ 은혜' },
+                        { emoji: 'like', label: '👍 좋아요' },
+                        { emoji: 'fire', label: '🔥 파이팅' },
+                      ].map(({ emoji, label }) => {
+                        const count = post.reactions ? (post.reactions[emoji] || 0) : 0;
+                        const isReacted = post.my_reactions?.includes(emoji);
+                        return (
+                          <button
+                            key={emoji}
+                            type="button"
+                            onClick={() => handleToggleReaction('post', post.id, emoji)}
+                            style={{
+                              background: isReacted ? '#eff6ff' : '#f8fafc',
+                              color: isReacted ? 'var(--color-primary)' : 'var(--color-text-muted)',
+                              border: isReacted ? '1px solid var(--color-primary)' : '1px solid #e2e8f0',
+                              borderRadius: '16px',
+                              padding: '3px 9px',
+                              fontSize: '11.5px',
+                              fontWeight: isReacted ? '700' : '500',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              transition: 'all 0.15s ease'
+                            }}
+                          >
+                            <span>{label}</span>
+                            {count > 0 && <span style={{ fontWeight: '700' }}>{count}</span>}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Comments Toggle Button */}
+                    <button
+                      type="button"
+                      onClick={() => setOpenComments(prev => ({ ...prev, [post.id]: !prev[post.id] }))}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--color-text-muted)',
+                        fontSize: '12px',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        padding: '4px 6px'
+                      }}
+                    >
+                      <MessageSquare size={13} />
+                      <span>댓글 {post.comments ? post.comments.length : 0}개</span>
+                      {openComments[post.id] ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                    </button>
+                  </div>
+
+                  {/* Comments Section (Expandable) */}
+                  {openComments[post.id] && (
+                    <div style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '8px',
+                      marginTop: '6px',
+                      padding: '10px 12px',
+                      background: '#f8fafc',
+                      borderRadius: 'var(--radius-md)'
+                    }}>
+                      {/* Comments List */}
+                      {post.comments && post.comments.length > 0 ? (
+                        post.comments
+                          .filter(c => !c.parent_comment_id)
+                          .map(parentComm => {
+                            const replies = post.comments?.filter(r => r.parent_comment_id === parentComm.id) || [];
+                            return (
+                              <div key={parentComm.id} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                {/* Top-Level Comment */}
+                                <div style={{
+                                  display: 'flex',
+                                  justifyContent: 'space-between',
+                                  alignItems: 'flex-start',
+                                  background: 'white',
+                                  padding: '7px 10px',
+                                  borderRadius: '8px',
+                                  border: '1px solid #f1f5f9'
+                                }}>
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', flex: 1 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                      <span style={{ fontSize: '12px', fontWeight: '700', color: 'var(--color-text-main)' }}>
+                                        {parentComm.user_name}
+                                      </span>
+                                      <span style={{ fontSize: '10px', color: '#64748b' }}>
+                                        {parentComm.user_cell}
+                                      </span>
+                                      <span style={{ fontSize: '10px', color: '#94a3b8' }}>
+                                        {new Date(parentComm.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
+                                      </span>
+                                    </div>
+                                    <p style={{ fontSize: '12.5px', margin: '2px 0 0 0', color: '#1e293b', lineHeight: 1.4 }}>
+                                      {parentComm.content}
+                                    </p>
+                                    <div style={{ display: 'flex', gap: '8px', marginTop: '3px' }}>
+                                      <button
+                                        type="button"
+                                        onClick={() => setReplyingToId(replyingToId === parentComm.id ? null : parentComm.id)}
+                                        style={{
+                                          background: 'none',
+                                          border: 'none',
+                                          color: 'var(--color-primary)',
+                                          fontSize: '11px',
+                                          fontWeight: '600',
+                                          padding: 0,
+                                          cursor: 'pointer'
+                                        }}
+                                      >
+                                        답글 달기
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  {(parentComm.user_id === user.id || isManager) && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteComment(parentComm.id)}
+                                      style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '2px' }}
+                                      title="댓글 삭제"
+                                    >
+                                      <Trash2 size={12} />
+                                    </button>
+                                  )}
+                                </div>
+
+                                {/* Nested Replies */}
+                                {replies.map(reply => (
+                                  <div
+                                    key={reply.id}
+                                    style={{
+                                      display: 'flex',
+                                      justifyContent: 'space-between',
+                                      alignItems: 'flex-start',
+                                      marginLeft: '18px',
+                                      background: '#f1f5f9',
+                                      padding: '6px 10px',
+                                      borderRadius: '8px',
+                                      borderLeft: '2px solid var(--color-primary)'
+                                    }}
+                                  >
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', flex: 1 }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                        <CornerDownRight size={11} color="var(--color-primary)" />
+                                        <span style={{ fontSize: '11.5px', fontWeight: '700', color: 'var(--color-text-main)' }}>
+                                          {reply.user_name}
+                                        </span>
+                                        <span style={{ fontSize: '9.5px', color: '#64748b' }}>
+                                          {reply.user_cell}
+                                        </span>
+                                      </div>
+                                      <p style={{ fontSize: '12px', margin: '2px 0 0 15px', color: '#1e293b', lineHeight: 1.4 }}>
+                                        {reply.content}
+                                      </p>
+                                    </div>
+                                    {(reply.user_id === user.id || isManager) && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDeleteComment(reply.id)}
+                                        style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '2px' }}
+                                        title="답글 삭제"
+                                      >
+                                        <Trash2 size={11} />
+                                      </button>
+                                    )}
+                                  </div>
+                                ))}
+
+                                {/* Reply Input Box (when replyingToId === parentComm.id) */}
+                                {replyingToId === parentComm.id && (
+                                  <div style={{ display: 'flex', gap: '6px', marginLeft: '18px', marginTop: '2px' }}>
+                                    <input
+                                      type="text"
+                                      className="form-input"
+                                      placeholder={`@${parentComm.user_name} 님에게 답글 작성...`}
+                                      value={replyInputs[parentComm.id] || ''}
+                                      onChange={(e) => setReplyInputs({ ...replyInputs, [parentComm.id]: e.target.value })}
+                                      onKeyDown={(e) => { if (e.key === 'Enter') handleAddComment(post.id, parentComm.id); }}
+                                      style={{ flex: 1, fontSize: '12px', padding: '5px 8px' }}
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => handleAddComment(post.id, parentComm.id)}
+                                      className="btn btn-primary"
+                                      style={{ padding: '4px 10px', fontSize: '11.5px' }}
+                                    >
+                                      등록
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })
+                      ) : (
+                        <div style={{ fontSize: '12px', color: '#94a3b8', textAlign: 'center', padding: '6px 0' }}>
+                          아직 작성된 댓글이 없습니다. 첫 댓글을 남겨보세요!
+                        </div>
+                      )}
+
+                      {/* Top-Level Comment Input */}
+                      <div style={{ display: 'flex', gap: '6px', marginTop: '4px' }}>
+                        <input
+                          type="text"
+                          className="form-input"
+                          placeholder="댓글을 남겨 은혜와 응원을 전해주세요..."
+                          value={commentInputs[post.id] || ''}
+                          onChange={(e) => setCommentInputs({ ...commentInputs, [post.id]: e.target.value })}
+                          onKeyDown={(e) => { if (e.key === 'Enter') handleAddComment(post.id); }}
+                          style={{ flex: 1, fontSize: '12px', padding: '6px 10px', background: 'white' }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleAddComment(post.id)}
+                          className="btn btn-primary"
+                          style={{ padding: '6px 12px', fontSize: '12px' }}
+                        >
+                          등록
+                        </button>
+                      </div>
+                    </div>
                   )}
                 </div>
               ))
@@ -1419,6 +1833,232 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
           </div>
         </div>
       )}
+
+      {/* ======================================================== */}
+      {/* MODAL 5: MANAGER HANDOVER & AGREEMENT MODAL (총무 자율 협의) */}
+      {/* ======================================================== */}
+      {showHandoverModal && (
+        <div className="modal-overlay">
+          <div className="modal-content animate-fade-in" style={{ maxWidth: '480px', padding: '22px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+              <div>
+                <h3 style={{ fontSize: '16px', fontWeight: '800', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Handshake size={18} color="var(--color-primary)" />
+                  총무 자율 협의 및 위임
+                </h3>
+                <p style={{ fontSize: '11.5px', color: 'var(--color-text-muted)', margin: '3px 0 0 0' }}>
+                  모영당 최대 3명 체계 / 총무 2인 이상 동의 시 직분이 즉시 변경됩니다.
+                </p>
+              </div>
+              <button onClick={() => setShowHandoverModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Current Managers List */}
+            <div style={{ background: '#f8fafc', padding: '12px 14px', borderRadius: 'var(--radius-md)', marginBottom: '14px' }}>
+              <div style={{ fontSize: '12px', fontWeight: '700', color: 'var(--color-text-muted)', marginBottom: '6px' }}>
+                현재 활동 중인 총무 ({managers.length}/3명)
+              </div>
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                {managers.map(mName => (
+                  <span
+                    key={mName}
+                    className="badge"
+                    style={{ background: '#e0e7ff', color: '#3730a3', fontSize: '11.5px', padding: '3px 8px', fontWeight: '700' }}
+                  >
+                    👑 {mName}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            {/* Active Handover Proposals */}
+            {data?.handoverVotes && data.handoverVotes.length > 0 && (
+              <div style={{ marginBottom: '16px' }}>
+                <div style={{ fontSize: '12.5px', fontWeight: '800', color: '#b45309', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  <Sparkles size={14} />
+                  진행 중인 총무 동의 안건 ({data.handoverVotes.length}건)
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {data.handoverVotes.map(vote => (
+                    <div
+                      key={vote.id}
+                      style={{
+                        padding: '12px',
+                        background: '#fffbeb',
+                        border: '1px solid #fef3c7',
+                        borderRadius: 'var(--radius-md)',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        gap: '8px'
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontSize: '12.5px', fontWeight: '700', color: '#92400e' }}>
+                          {vote.target_user_name} 성도님 {vote.action_type === 'appoint' ? '새 총무 선임' : '총무 해임'}
+                        </div>
+                        <div style={{ fontSize: '11px', color: '#b45309', marginTop: '2px' }}>
+                          발의: {vote.proposer_name} | 현재 동의: {vote.agreed_user_ids.length}/2명
+                        </div>
+                      </div>
+
+                      {vote.has_agreed ? (
+                        <span className="badge" style={{ background: '#dcfce7', color: '#15803d', fontSize: '11px', padding: '3px 8px' }}>
+                          <Check size={11} style={{ marginRight: '3px' }} />
+                          동의 완료
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleAgreeHandover(vote.id)}
+                          className="btn btn-sm btn-primary"
+                          style={{ fontSize: '11.5px', padding: '4px 10px' }}
+                        >
+                          <Check size={12} />
+                          동의하기
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Propose New Action */}
+            <form onSubmit={handleProposeHandover} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ fontSize: '13px', fontWeight: '800', color: 'var(--color-text-main)' }}>
+                새로운 총무 안건 발의
+              </div>
+
+              {/* Action Type Select */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                <button
+                  type="button"
+                  onClick={() => { setHandoverActionType('appoint'); setHandoverTargetUserId(null); }}
+                  className="btn btn-sm"
+                  style={{
+                    background: handoverActionType === 'appoint' ? 'var(--color-primary)' : '#f1f5f9',
+                    color: handoverActionType === 'appoint' ? 'white' : 'var(--color-text-muted)',
+                    fontWeight: '700',
+                    fontSize: '12px'
+                  }}
+                >
+                  <UserCheck size={13} />
+                  새 총무 선임
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setHandoverActionType('dismiss'); setHandoverTargetUserId(null); }}
+                  className="btn btn-sm"
+                  style={{
+                    background: handoverActionType === 'dismiss' ? '#ef4444' : '#f1f5f9',
+                    color: handoverActionType === 'dismiss' ? 'white' : 'var(--color-text-muted)',
+                    fontWeight: '700',
+                    fontSize: '12px'
+                  }}
+                >
+                  <UserMinus size={13} />
+                  기존 총무 해임
+                </button>
+              </div>
+
+              {/* Target Selection */}
+              {handoverActionType === 'appoint' ? (
+                managers.length >= 3 ? (
+                  <div style={{ fontSize: '12px', color: '#b45309', background: '#fffbeb', padding: '10px', borderRadius: '8px' }}>
+                    ⚠️ 이미 최대 총무 인원(3명)이 가득 찼습니다. 새 총무를 모시려면 먼저 기존 총무 해임 안건을 발의해 주세요.
+                  </div>
+                ) : (
+                  <div>
+                    <label className="form-label">선임할 성도 선택</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      placeholder="성도 이름 검색..."
+                      value={handoverSearch}
+                      onChange={(e) => setHandoverSearch(e.target.value)}
+                      style={{ fontSize: '12px', marginBottom: '6px', padding: '6px 8px' }}
+                    />
+                    <div style={{ maxHeight: '140px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '4px' }}>
+                      {(data?.churchMembers || [])
+                        .filter(m => !managers.includes(m.name))
+                        .filter(m => !handoverSearch || m.name.includes(handoverSearch) || m.cell_name.includes(handoverSearch))
+                        .map(m => (
+                          <div
+                            key={m.id}
+                            onClick={() => setHandoverTargetUserId(m.id)}
+                            style={{
+                              padding: '6px 10px',
+                              borderRadius: '6px',
+                              background: handoverTargetUserId === m.id ? '#eff6ff' : 'transparent',
+                              border: handoverTargetUserId === m.id ? '1px solid var(--color-primary)' : '1px solid transparent',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              fontSize: '12px'
+                            }}
+                          >
+                            <span style={{ fontWeight: '700' }}>{m.name}</span>
+                            <span style={{ color: '#64748b', fontSize: '11px' }}>{m.cell_name}</span>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                )
+              ) : (
+                managers.length <= 1 ? (
+                  <div style={{ fontSize: '12px', color: '#b45309', background: '#fffbeb', padding: '10px', borderRadius: '8px' }}>
+                    ⚠️ 모영의 정상 운영을 위해 최소 1명의 총무가 유지되어야 합니다.
+                  </div>
+                ) : (
+                  <div>
+                    <label className="form-label">해임할 총무 선택</label>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      {(data?.churchMembers || [])
+                        .filter(m => managers.includes(m.name))
+                        .map(m => (
+                          <div
+                            key={m.id}
+                            onClick={() => setHandoverTargetUserId(m.id)}
+                            style={{
+                              padding: '8px 10px',
+                              borderRadius: '6px',
+                              background: handoverTargetUserId === m.id ? '#fef2f2' : '#f8fafc',
+                              border: handoverTargetUserId === m.id ? '1px solid #ef4444' : '1px solid #e2e8f0',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              fontSize: '12.5px'
+                            }}
+                          >
+                            <span style={{ fontWeight: '700' }}>👑 {m.name}</span>
+                            <span style={{ color: '#64748b', fontSize: '11px' }}>{m.cell_name}</span>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                )
+              )}
+
+              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '8px' }}>
+                <button type="button" className="btn btn-secondary" onClick={() => setShowHandoverModal(false)}>
+                  닫기
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  disabled={!handoverTargetUserId || (handoverActionType === 'appoint' && managers.length >= 3) || (handoverActionType === 'dismiss' && managers.length <= 1)}
+                >
+                  안건 발의하기
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
+

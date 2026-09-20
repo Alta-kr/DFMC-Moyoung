@@ -69,13 +69,42 @@ clubsRouter.get('/:id', (req: AuthRequest, res: Response) => {
     };
   });
 
-  // Posts (Community Feed)
-  const posts = db.prepare(`
+  // Posts (Community Feed with comments & reactions)
+  const rawPosts = db.prepare(`
     SELECT * FROM club_posts
     WHERE club_id = ?
     ORDER BY created_at DESC
     LIMIT 50
-  `).all(clubId);
+  `).all(clubId) as any[];
+
+  const posts = rawPosts.map((post) => {
+    const comments = db.prepare(`
+      SELECT * FROM club_post_comments
+      WHERE post_id = ?
+      ORDER BY created_at ASC
+    `).all(post.id) as any[];
+
+    const rawReactions = db.prepare(`
+      SELECT emoji, COUNT(*) as count FROM club_reactions
+      WHERE target_type = 'post' AND target_id = ?
+      GROUP BY emoji
+    `).all(post.id) as any[];
+
+    const reactions: Record<string, number> = { amen: 0, heart: 0, like: 0, fire: 0 };
+    rawReactions.forEach((r) => { reactions[r.emoji] = r.count; });
+
+    const myReactions = db.prepare(`
+      SELECT emoji FROM club_reactions
+      WHERE target_type = 'post' AND target_id = ? AND user_id = ?
+    `).all(post.id, user?.id).map((r: any) => r.emoji);
+
+    return {
+      ...post,
+      comments,
+      reactions,
+      my_reactions: myReactions,
+    };
+  });
 
   // Schedules (Gatherings)
   const rawSchedules = db.prepare(`
@@ -107,6 +136,30 @@ clubsRouter.get('/:id', (req: AuthRequest, res: Response) => {
     LIMIT 40
   `).all(clubId);
 
+  // Manager handover votes (for this club)
+  const rawHandoverVotes = db.prepare(`
+    SELECT * FROM club_manager_handover_votes
+    WHERE club_id = ? AND status = 'pending'
+    ORDER BY created_at DESC
+  `).all(clubId) as any[];
+
+  const handoverVotes = rawHandoverVotes.map((v) => {
+    let agreedIds: number[] = [];
+    try {
+      agreedIds = JSON.parse(v.agreed_user_ids || '[]');
+    } catch {
+      agreedIds = [];
+    }
+    return {
+      ...v,
+      agreed_user_ids: agreedIds,
+      has_agreed: agreedIds.includes(user?.id || 0),
+    };
+  });
+
+  // Church members for handover modal
+  const churchMembers = db.prepare('SELECT id, name, cell_name FROM users ORDER BY name ASC').all();
+
   res.json({
     club,
     isManager,
@@ -114,6 +167,8 @@ clubsRouter.get('/:id', (req: AuthRequest, res: Response) => {
     posts,
     schedules,
     photos,
+    handoverVotes,
+    churchMembers,
   });
 });
 
@@ -421,3 +476,253 @@ clubsRouter.delete('/:id/photos/:photoId', (req: AuthRequest, res: Response) => 
   db.prepare('DELETE FROM club_photos WHERE id = ?').run(photoId);
   res.json({ message: '사진이 삭제되었습니다.' });
 });
+
+// 10. Comments & Replies
+clubsRouter.post('/:id/posts/:postId/comments', (req: AuthRequest, res: Response) => {
+  const clubId = parseInt(req.params.id);
+  const postId = parseInt(req.params.postId);
+  const user = req.user;
+  const { content, parent_comment_id } = req.body;
+
+  if (!content || !content.trim()) {
+    return res.status(400).json({ error: '댓글 내용을 입력해주세요.' });
+  }
+
+  // Verify post belongs to club
+  const post = db.prepare('SELECT id FROM club_posts WHERE id = ? AND club_id = ?').get(postId, clubId);
+  if (!post) {
+    return res.status(404).json({ error: '게시글을 찾을 수 없습니다.' });
+  }
+
+  const result = db.prepare(`
+    INSERT INTO club_post_comments (post_id, parent_comment_id, user_id, user_name, user_cell, content)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(
+    postId,
+    parent_comment_id ? parseInt(parent_comment_id) : null,
+    user?.id,
+    user?.name,
+    user?.cell_name,
+    content.trim()
+  );
+
+  const newComment = db.prepare('SELECT * FROM club_post_comments WHERE id = ?').get(result.lastInsertRowid);
+  res.json({ message: '댓글이 등록되었습니다.', comment: newComment });
+});
+
+clubsRouter.delete('/:id/comments/:commentId', (req: AuthRequest, res: Response) => {
+  const clubId = parseInt(req.params.id);
+  const commentId = parseInt(req.params.commentId);
+  const user = req.user;
+
+  const comment = db.prepare('SELECT * FROM club_post_comments WHERE id = ?').get(commentId) as any;
+  if (!comment) {
+    return res.status(404).json({ error: '댓글을 찾을 수 없습니다.' });
+  }
+
+  const club = db.prepare('SELECT * FROM clubs WHERE id = ?').get(clubId) as any;
+  const isManager = checkIsClubManager(club, user);
+
+  if (comment.user_id !== user?.id && !isManager) {
+    return res.status(403).json({ error: '작성자 본인 또는 총무만 삭제할 수 있습니다.' });
+  }
+
+  // Delete comment and any replies
+  db.prepare('DELETE FROM club_post_comments WHERE id = ? OR parent_comment_id = ?').run(commentId, commentId);
+  // Also clean up any reactions on this comment
+  db.prepare("DELETE FROM club_reactions WHERE target_type = 'comment' AND target_id = ?").run(commentId);
+
+  res.json({ message: '댓글이 삭제되었습니다.' });
+});
+
+// 11. Emoji Reactions Toggle (Amen, Heart, Like, Fire)
+clubsRouter.post('/:id/reactions', (req: AuthRequest, res: Response) => {
+  const user = req.user;
+  const { targetType, targetId, emoji } = req.body;
+
+  const validTypes = ['post', 'comment'];
+  const validEmojis = ['amen', 'heart', 'like', 'fire'];
+
+  if (!validTypes.includes(targetType) || !validEmojis.includes(emoji)) {
+    return res.status(400).json({ error: '올바르지 않은 반응 요청입니다.' });
+  }
+
+  // Check if reaction already exists
+  const existing = db.prepare(`
+    SELECT id FROM club_reactions
+    WHERE target_type = ? AND target_id = ? AND user_id = ? AND emoji = ?
+  `).get(targetType, targetId, user?.id, emoji) as any;
+
+  let active = false;
+  if (existing) {
+    db.prepare('DELETE FROM club_reactions WHERE id = ?').run(existing.id);
+    active = false;
+  } else {
+    db.prepare(`
+      INSERT INTO club_reactions (target_type, target_id, user_id, emoji)
+      VALUES (?, ?, ?, ?)
+    `).run(targetType, targetId, user?.id, emoji);
+    active = true;
+  }
+
+  // Return updated reactions for this target
+  const rawReactions = db.prepare(`
+    SELECT emoji, COUNT(*) as count FROM club_reactions
+    WHERE target_type = ? AND target_id = ?
+    GROUP BY emoji
+  `).all(targetType, targetId) as any[];
+
+  const reactions: Record<string, number> = { amen: 0, heart: 0, like: 0, fire: 0 };
+  rawReactions.forEach((r) => { reactions[r.emoji] = r.count; });
+
+  const myReactions = db.prepare(`
+    SELECT emoji FROM club_reactions
+    WHERE target_type = ? AND target_id = ? AND user_id = ?
+  `).all(targetType, targetId, user?.id).map((r: any) => r.emoji);
+
+  res.json({
+    active,
+    reactions,
+    my_reactions: myReactions,
+  });
+});
+
+// 12. Manager Handover & Agreement System (3 managers max, 2-agree rule)
+clubsRouter.post('/:id/handover/propose', (req: AuthRequest, res: Response) => {
+  const clubId = parseInt(req.params.id);
+  const user = req.user;
+  const { targetUserId, actionType } = req.body; // actionType: 'appoint' | 'dismiss'
+
+  const club = db.prepare('SELECT * FROM clubs WHERE id = ?').get(clubId) as any;
+  if (!club) return res.status(404).json({ error: '모영을 찾을 수 없습니다.' });
+
+  const isManager = checkIsClubManager(club, user);
+  if (!isManager) {
+    return res.status(403).json({ error: '총무 권한을 가진 성도만 안건을 발의할 수 있습니다.' });
+  }
+
+  const targetUser = db.prepare('SELECT id, name FROM users WHERE id = ?').get(targetUserId) as any;
+  if (!targetUser) {
+    return res.status(404).json({ error: '대상 성도를 찾을 수 없습니다.' });
+  }
+
+  const currentManagers = (club.manager_names || '').split(',').map((s: string) => s.trim()).filter(Boolean);
+
+  if (actionType === 'appoint') {
+    if (currentManagers.includes(targetUser.name)) {
+      return res.status(400).json({ error: '이미 해당 모영의 총무로 활동 중인 성도입니다.' });
+    }
+    if (currentManagers.length >= 3) {
+      return res.status(400).json({ error: '총무는 최대 3명까지만 가능합니다. 먼저 기존 총무 해임 안건을 발의해 주세요.' });
+    }
+  } else if (actionType === 'dismiss') {
+    if (!currentManagers.includes(targetUser.name)) {
+      return res.status(400).json({ error: '해당 모영의 총무가 아닙니다.' });
+    }
+    if (currentManagers.length <= 1) {
+      return res.status(400).json({ error: '최소 1명의 총무가 유지되어야 합니다.' });
+    }
+  }
+
+  // Create proposal with proposer auto-agreed
+  const result = db.prepare(`
+    INSERT INTO club_manager_handover_votes (club_id, proposer_id, proposer_name, target_user_id, target_user_name, action_type, agreed_user_ids, status)
+    VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')
+  `).run(
+    clubId,
+    user?.id,
+    user?.name,
+    targetUser.id,
+    targetUser.name,
+    actionType,
+    JSON.stringify([user?.id])
+  );
+
+  const newVote = db.prepare('SELECT * FROM club_manager_handover_votes WHERE id = ?').get(result.lastInsertRowid);
+  res.json({
+    message: `${actionType === 'appoint' ? '새 총무 선임' : '총무 해임'} 안건이 발의되었습니다. 다른 총무 1명의 동의 시 즉시 반영됩니다.`,
+    vote: newVote,
+  });
+});
+
+clubsRouter.post('/:id/handover/:voteId/agree', (req: AuthRequest, res: Response) => {
+  const clubId = parseInt(req.params.id);
+  const voteId = parseInt(req.params.voteId);
+  const user = req.user;
+
+  const club = db.prepare('SELECT * FROM clubs WHERE id = ?').get(clubId) as any;
+  if (!club) return res.status(404).json({ error: '모영을 찾을 수 없습니다.' });
+
+  const isManager = checkIsClubManager(club, user);
+  if (!isManager) {
+    return res.status(403).json({ error: '총무만 동의할 수 있습니다.' });
+  }
+
+  const vote = db.prepare('SELECT * FROM club_manager_handover_votes WHERE id = ? AND club_id = ?').get(voteId, clubId) as any;
+  if (!vote || vote.status !== 'pending') {
+    return res.status(404).json({ error: '진행 중인 안건이 아닙니다.' });
+  }
+
+  let agreedIds: number[] = [];
+  try {
+    agreedIds = JSON.parse(vote.agreed_user_ids || '[]');
+  } catch {
+    agreedIds = [];
+  }
+
+  if (!user || !user.id) {
+    return res.status(401).json({ error: '인증 정보가 올바르지 않습니다.' });
+  }
+
+
+  if (agreedIds.includes(user.id)) {
+    return res.status(400).json({ error: '이미 동의하신 안건입니다.' });
+  }
+
+  agreedIds.push(user.id);
+
+
+  // Check if 2 or more managers agreed (or if there's only 1 manager, 1 is enough)
+  const currentManagers = (club.manager_names || '').split(',').map((s: string) => s.trim()).filter(Boolean);
+  const requiredCount = Math.min(2, currentManagers.length);
+
+  if (agreedIds.length >= requiredCount) {
+    // Execute handover!
+    let newManagers = [...currentManagers];
+    if (vote.action_type === 'appoint') {
+      if (!newManagers.includes(vote.target_user_name)) {
+        newManagers.push(vote.target_user_name);
+      }
+    } else if (vote.action_type === 'dismiss') {
+      newManagers = newManagers.filter((m) => m !== vote.target_user_name);
+    }
+
+    const updatedManagerNames = newManagers.join(', ');
+    db.prepare('UPDATE clubs SET manager_names = ? WHERE id = ?').run(updatedManagerNames, clubId);
+
+    db.prepare(`
+      UPDATE club_manager_handover_votes
+      SET agreed_user_ids = ?, status = 'completed'
+      WHERE id = ?
+    `).run(JSON.stringify(agreedIds), voteId);
+
+    return res.json({
+      message: `총무 2인 합의가 완료되어 ${vote.target_user_name} 성도님의 ${vote.action_type === 'appoint' ? '선임' : '해임'}이 즉시 반영되었습니다! 🎉`,
+      status: 'completed',
+      manager_names: updatedManagerNames,
+    });
+  } else {
+    db.prepare(`
+      UPDATE club_manager_handover_votes
+      SET agreed_user_ids = ?
+      WHERE id = ?
+    `).run(JSON.stringify(agreedIds), voteId);
+
+    return res.json({
+      message: '안건에 동의하셨습니다. (총무 1명 추가 동의 필요)',
+      status: 'pending',
+      agreed_count: agreedIds.length,
+    });
+  }
+});
+
