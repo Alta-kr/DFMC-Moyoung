@@ -14,7 +14,7 @@ export function App() {
   const [token, setToken] = useState<string | null>(localStorage.getItem('dfmc_token'));
   const [currentPage, setCurrentPage] = useState<string>('login');
   const [selectedClubId, setSelectedClubId] = useState<number | null>(null);
-  const [selectedClubTab, setSelectedClubTab] = useState<'polls' | 'posts' | 'schedules' | 'photos'>('polls');
+  const [selectedClubTab, setSelectedClubTab] = useState<'talk' | 'polls' | 'posts' | 'schedules' | 'photos'>('talk');
   const [showMyInfoModal, setShowMyInfoModal] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(true);
 
@@ -102,7 +102,7 @@ export function App() {
     }
   };
 
-  const handleNavigateClub = (clubId: number, initialTab: 'polls' | 'posts' | 'schedules' | 'photos' = 'polls') => {
+  const handleNavigateClub = (clubId: number, initialTab: 'talk' | 'polls' | 'posts' | 'schedules' | 'photos' = 'talk') => {
     setSelectedClubId(clubId);
     setSelectedClubTab(initialTab);
     setCurrentPage('club-detail');

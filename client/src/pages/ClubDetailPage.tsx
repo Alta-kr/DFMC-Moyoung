@@ -1,27 +1,30 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { User, Club, ClubDetailData, ClubPollItem, ClubPostItem, ClubScheduleItem, ClubPhotoItem, ClubCommentItem, ManagerHandoverVoteItem, MemberItem } from '../types';
 import { 
   ArrowLeft, Edit3, Vote, MessageSquare, Calendar, Image as ImageIcon, 
   Plus, Check, X, Trash2, MapPin, DollarSign, Clock, Users,
   Send, Sparkles, AlertCircle, CheckCircle2, ChevronDown, ChevronUp,
-  CornerDownRight, ThumbsUp, Flame, Heart, Smile, UserCheck, UserMinus, Settings, Handshake
+  CornerDownRight, ThumbsUp, Flame, Heart, Smile, UserCheck, UserMinus, Settings, Handshake,
+  Pin, Megaphone, Lock
 } from 'lucide-react';
 
 interface ClubDetailPageProps {
   clubId: number;
   user: User;
-  initialTab?: 'polls' | 'posts' | 'schedules' | 'photos';
+  initialTab?: 'talk' | 'polls' | 'posts' | 'schedules' | 'photos';
   onBackToLobby: () => void;
 }
 
 export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
   clubId,
   user,
-  initialTab = 'polls',
+  initialTab = 'talk',
   onBackToLobby,
 }) => {
   const [data, setData] = useState<ClubDetailData | null>(null);
-  const [activeTab, setActiveTab] = useState<'polls' | 'posts' | 'schedules' | 'photos'>(initialTab);
+  const [activeTab, setActiveTab] = useState<'talk' | 'polls' | 'posts' | 'schedules' | 'photos'>(
+    initialTab === 'posts' ? 'talk' : initialTab
+  );
   const [loading, setLoading] = useState(true);
   const [actionMessage, setActionMessage] = useState('');
   const [actionError, setActionError] = useState('');
@@ -42,10 +45,26 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
   // Feed Post, Comments & Reactions
   const [postContent, setPostContent] = useState('');
   const [postImageUrl, setPostImageUrl] = useState('');
+  const [isNoticePost, setIsNoticePost] = useState(false);
+  const [showAttachImage, setShowAttachImage] = useState(false);
+  const [showPinnedBanner, setShowPinnedBanner] = useState(true);
+  const [showScrollBottom, setShowScrollBottom] = useState(false);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
+  const chatEndRef = useRef<HTMLDivElement>(null);
   const [openComments, setOpenComments] = useState<Record<number, boolean>>({});
   const [commentInputs, setCommentInputs] = useState<Record<number, string>>({});
   const [replyInputs, setReplyInputs] = useState<Record<number, string>>({});
   const [replyingToId, setReplyingToId] = useState<number | null>(null);
+
+  const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
+    chatEndRef.current?.scrollIntoView({ behavior });
+  };
+
+  const handleChatScroll = () => {
+    if (!chatContainerRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = chatContainerRef.current;
+    setShowScrollBottom(scrollHeight - scrollTop - clientHeight > 180);
+  };
 
   // Handover Modal
   const [showHandoverModal, setShowHandoverModal] = useState(false);
@@ -61,10 +80,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
   const [schedLocation, setSchedLocation] = useState('');
   const [schedFee, setSchedFee] = useState('무료');
 
-  // Photo Modal & Lightbox
-  const [showPhotoModal, setShowPhotoModal] = useState(false);
-  const [photoUrl, setPhotoUrl] = useState('');
-  const [photoCaption, setPhotoCaption] = useState('');
+  // Photo Lightbox
   const [lightboxPhoto, setLightboxPhoto] = useState<string | null>(null);
 
   const token = localStorage.getItem('dfmc_token');
@@ -101,6 +117,15 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
   useEffect(() => {
     loadClubData();
   }, [clubId]);
+
+  useEffect(() => {
+    if (activeTab === 'talk' || activeTab === 'posts') {
+      const timer = setTimeout(() => {
+        scrollToBottom('auto');
+      }, 150);
+      return () => clearTimeout(timer);
+    }
+  }, [activeTab, data]);
 
   // 1. Update Club Info (Managers only)
   const handleSaveClubInfo = async (e: React.FormEvent) => {
@@ -201,21 +226,25 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
   };
 
   // 3. Post (Feed) Handlers
-  const handleCreatePost = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleCreatePost = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (!postContent.trim()) return;
+    const finalContent = isNoticePost ? `[공지] ${postContent.trim()}` : postContent.trim();
     try {
       const res = await fetch(`/api/clubs/${clubId}/posts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ content: postContent, image_url: postImageUrl }),
+        body: JSON.stringify({ content: finalContent, image_url: postImageUrl }),
       });
       const resData = await res.json();
       if (!res.ok) throw new Error(resData.error);
       flash(resData.message);
       setPostContent('');
       setPostImageUrl('');
-      loadClubData();
+      setIsNoticePost(false);
+      setShowAttachImage(false);
+      await loadClubData();
+      setTimeout(() => scrollToBottom('smooth'), 100);
     } catch (err: any) {
       flashErr(err.message);
     }
@@ -355,7 +384,8 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
       setSchedDate('');
       setSchedLocation('');
       setSchedFee('무료');
-      loadClubData();
+      await loadClubData();
+      setTimeout(() => scrollToBottom('smooth'), 100);
     } catch (err: any) {
       flashErr(err.message);
     }
@@ -390,42 +420,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
     }
   };
 
-  // 5. Photo Handlers
-  const handleAddPhoto = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!photoUrl.trim()) return;
-    try {
-      const res = await fetch(`/api/clubs/${clubId}/photos`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ image_url: photoUrl, caption: photoCaption }),
-      });
-      const resData = await res.json();
-      if (!res.ok) throw new Error(resData.error);
-      flash(resData.message);
-      setShowPhotoModal(false);
-      setPhotoUrl('');
-      setPhotoCaption('');
-      loadClubData();
-    } catch (err: any) {
-      flashErr(err.message);
-    }
-  };
 
-  const handleDeletePhoto = async (photoId: number) => {
-    if (!confirm('이 사진을 앨범에서 삭제하시겠습니까?')) return;
-    try {
-      const res = await fetch(`/api/clubs/${clubId}/photos/${photoId}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const resData = await res.json();
-      flash(resData.message);
-      loadClubData();
-    } catch (err: any) {
-      flashErr(err.message);
-    }
-  };
 
   if (loading) {
     return (
@@ -441,6 +436,46 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
   const managers = (club.manager_names || '').split(',').map(s => s.trim()).filter(Boolean);
   const activePolls = polls.filter(p => !p.is_closed && !p.is_expired);
   const closedPolls = polls.filter(p => p.is_closed || p.is_expired);
+  const isHost = isManager || user.role === 'head_admin' || user.role === 'server_admin';
+
+  const timelineItems: Array<
+    | { type: 'post'; id: number; timestamp: number; data: ClubPostItem }
+    | { type: 'schedule'; id: number; timestamp: number; data: ClubScheduleItem }
+  > = [
+    ...posts.map((p) => ({
+      type: 'post' as const,
+      id: p.id,
+      timestamp: new Date(p.created_at).getTime(),
+      data: p,
+    })),
+    ...schedules.map((s) => ({
+      type: 'schedule' as const,
+      id: s.id,
+      timestamp: s.created_at ? new Date(s.created_at).getTime() : new Date(s.event_date).getTime(),
+      data: s,
+    })),
+  ].sort((a, b) => a.timestamp - b.timestamp);
+
+  const upcomingSchedule = schedules.find(s => new Date(s.event_date).getTime() >= Date.now()) || schedules[schedules.length - 1];
+  const latestNotice = posts.find(p => p.content.startsWith('[공지]') || managers.includes(p.user_name));
+
+  const formatDateDivider = (timestamp: number) => {
+    const d = new Date(timestamp);
+    return d.toLocaleDateString('ko-KR', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      weekday: 'long',
+    });
+  };
+
+  const formatMessageTime = (timestamp: number) => {
+    const d = new Date(timestamp);
+    return d.toLocaleTimeString('ko-KR', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
 
   return (
     <div style={{ padding: '16px 16px 80px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -633,16 +668,36 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
         </div>
       </div>
 
-      {/* Tab Navigation (4 Tabs) */}
+      {/* Tab Navigation (3 Tabs: 모영톡, 투표, 일정) */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(4, 1fr)',
+        gridTemplateColumns: 'repeat(3, 1fr)',
         background: 'var(--color-bg)',
         border: '1px solid var(--color-border)',
         borderRadius: 'var(--radius-lg)',
         padding: '4px',
         gap: '4px'
       }}>
+        <button
+          className="btn btn-sm"
+          onClick={() => setActiveTab('talk')}
+          style={{
+            background: activeTab === 'talk' || activeTab === 'posts' ? 'white' : 'transparent',
+            color: activeTab === 'talk' || activeTab === 'posts' ? 'var(--color-primary)' : 'var(--color-text-muted)',
+            boxShadow: activeTab === 'talk' || activeTab === 'posts' ? 'var(--shadow-sm)' : 'none',
+            fontWeight: '700',
+            padding: '9px 4px',
+            fontSize: '12.5px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '5px'
+          }}
+        >
+          <MessageSquare size={15} />
+          모영톡 (공지·일정)
+        </button>
+
         <button
           className="btn btn-sm"
           onClick={() => setActiveTab('polls')}
@@ -665,26 +720,6 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
 
         <button
           className="btn btn-sm"
-          onClick={() => setActiveTab('posts')}
-          style={{
-            background: activeTab === 'posts' ? 'white' : 'transparent',
-            color: activeTab === 'posts' ? 'var(--color-primary)' : 'var(--color-text-muted)',
-            boxShadow: activeTab === 'posts' ? 'var(--shadow-sm)' : 'none',
-            fontWeight: '700',
-            padding: '9px 4px',
-            fontSize: '12.5px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '5px'
-          }}
-        >
-          <MessageSquare size={15} />
-          나눔 ({posts.length})
-        </button>
-
-        <button
-          className="btn btn-sm"
           onClick={() => setActiveTab('schedules')}
           style={{
             background: activeTab === 'schedules' ? 'white' : 'transparent',
@@ -700,27 +735,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
           }}
         >
           <Calendar size={15} />
-          일정 ({schedules.length})
-        </button>
-
-        <button
-          className="btn btn-sm"
-          onClick={() => setActiveTab('photos')}
-          style={{
-            background: activeTab === 'photos' ? 'white' : 'transparent',
-            color: activeTab === 'photos' ? 'var(--color-primary)' : 'var(--color-text-muted)',
-            boxShadow: activeTab === 'photos' ? 'var(--shadow-sm)' : 'none',
-            fontWeight: '700',
-            padding: '9px 4px',
-            fontSize: '12.5px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '5px'
-          }}
-        >
-          <ImageIcon size={15} />
-          앨범 ({photos.length})
+          일정 목록 ({schedules.length})
         </button>
       </div>
 
@@ -918,356 +933,823 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
       )}
 
       {/* ======================================================== */}
-      {/* TAB 2: COMMUNITY POSTS / FEED (나눔 & 소통)               */}
+      {/* TAB 1: KAKAOTALK STYLE CHAT ROOM (모영톡 - 공지·일정·사진) */}
       {/* ======================================================== */}
-      {activeTab === 'posts' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-          {/* Write Box */}
-          <div className="card" style={{ padding: '16px' }}>
-            <h3 style={{ fontSize: '15px', fontWeight: '800', marginBottom: '10px' }}>
-              💬 모영 성도들과 나눔 글 작성하기
-            </h3>
-            <form onSubmit={handleCreatePost}>
-              <textarea
-                className="form-textarea"
-                rows={3}
-                placeholder={`[${user.name}] 성도님, 모임 소감이나 나누고 싶은 이야기를 자유롭게 적어주세요.`}
-                value={postContent}
-                onChange={(e) => setPostContent(e.target.value)}
-                required
-                style={{ fontSize: '13px', marginBottom: '8px' }}
-              />
-              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'space-between' }}>
-                <input
-                  type="text"
-                  className="form-input"
-                  placeholder="사진 이미지 URL (선택 사항)"
-                  value={postImageUrl}
-                  onChange={(e) => setPostImageUrl(e.target.value)}
-                  style={{ flex: 1, fontSize: '12px', padding: '6px 10px' }}
-                />
-                <button type="submit" className="btn btn-primary" style={{ padding: '7px 16px', fontSize: '13px' }}>
-                  <Send size={14} />
-                  글 올리기
-                </button>
-              </div>
-            </form>
-          </div>
-
-          {/* Posts Feed */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            {posts.length > 0 ? (
-              posts.map((post) => (
-                <div key={post.id} className="card" style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <div style={{
-                        width: '32px',
-                        height: '32px',
-                        borderRadius: '50%',
-                        background: 'var(--color-primary-light)',
-                        color: 'var(--color-primary)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: '12px',
-                        fontWeight: '700'
-                      }}>
-                        {post.user_name.slice(0, 1)}
-                      </div>
-                      <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span style={{ fontSize: '13.5px', fontWeight: '800', color: 'var(--color-text-main)' }}>
-                            {post.user_name}
-                          </span>
-                          <span className="badge" style={{ fontSize: '10px', padding: '1px 6px', background: '#f1f5f9', color: '#475569' }}>
-                            {post.user_cell}
-                          </span>
-                        </div>
-                        <div style={{ fontSize: '11px', color: 'var(--color-text-light)' }}>
-                          {new Date(post.created_at).toLocaleDateString('ko-KR')} {new Date(post.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
-                        </div>
-                      </div>
-                    </div>
-
-                    {(post.user_id === user.id || isManager) && (
-                      <button
-                        onClick={() => handleDeletePost(post.id)}
-                        className="btn btn-sm"
-                        style={{ background: 'transparent', border: 'none', color: 'var(--color-text-light)', padding: '4px' }}
-                        title="글 삭제"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    )}
-                  </div>
-
-                  <p style={{ fontSize: '13.5px', color: 'var(--color-text-main)', lineHeight: 1.6, whiteSpace: 'pre-line', margin: '4px 0 0 0' }}>
-                    {post.content}
-                  </p>
-
-                  {post.image_url && (
-                    <img
-                      src={post.image_url}
-                      alt="첨부 이미지"
-                      style={{
-                        maxWidth: '100%',
-                        maxHeight: '260px',
-                        objectFit: 'cover',
-                        borderRadius: 'var(--radius-md)',
-                        marginTop: '6px',
-                        cursor: 'pointer'
-                      }}
-                      onClick={() => setLightboxPhoto(post.image_url!)}
-                    />
-                  )}
-
-                  {/* Reaction Bar & Comments Toggle */}
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    flexWrap: 'wrap',
-                    gap: '6px',
-                    paddingTop: '8px',
-                    marginTop: '4px',
-                    borderTop: '1px solid #f1f5f9'
+      {(activeTab === 'talk' || activeTab === 'posts') && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          {/* KakaoTalk Chat Room Wrapper */}
+          <div style={{
+            background: '#b2c7d9',
+            borderRadius: '16px',
+            border: '1px solid #9fb3c4',
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+            position: 'relative'
+          }}>
+            {/* Top KakaoTalk Room Bar & Pinned Notice */}
+            <div style={{
+              background: 'rgba(255, 255, 255, 0.96)',
+              backdropFilter: 'blur(8px)',
+              borderBottom: '1px solid rgba(0, 0, 0, 0.08)',
+              padding: '10px 14px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '6px'
+            }}>
+              {/* Chat Title & Info */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '18px' }}>{club.icon}</span>
+                  <span style={{ fontSize: '14.5px', fontWeight: '800', color: '#1e293b' }}>
+                    {club.name} 모영톡
+                  </span>
+                  <span style={{
+                    fontSize: '11px',
+                    color: '#64748b',
+                    background: '#f1f5f9',
+                    padding: '1px 6px',
+                    borderRadius: '10px',
+                    fontWeight: '600'
                   }}>
-                    {/* Emoji Reaction Buttons */}
-                    <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
-                      {[
-                        { emoji: 'amen', label: '🙏 아멘' },
-                        { emoji: 'heart', label: '❤️ 은혜' },
-                        { emoji: 'like', label: '👍 좋아요' },
-                        { emoji: 'fire', label: '🔥 파이팅' },
-                      ].map(({ emoji, label }) => {
-                        const count = post.reactions ? (post.reactions[emoji] || 0) : 0;
-                        const isReacted = post.my_reactions?.includes(emoji);
-                        return (
-                          <button
-                            key={emoji}
-                            type="button"
-                            onClick={() => handleToggleReaction('post', post.id, emoji)}
-                            style={{
-                              background: isReacted ? '#eff6ff' : '#f8fafc',
-                              color: isReacted ? 'var(--color-primary)' : 'var(--color-text-muted)',
-                              border: isReacted ? '1px solid var(--color-primary)' : '1px solid #e2e8f0',
-                              borderRadius: '16px',
-                              padding: '3px 9px',
-                              fontSize: '11.5px',
-                              fontWeight: isReacted ? '700' : '500',
-                              cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '4px',
-                              transition: 'all 0.15s ease'
-                            }}
-                          >
-                            <span>{label}</span>
-                            {count > 0 && <span style={{ fontWeight: '700' }}>{count}</span>}
-                          </button>
-                        );
-                      })}
-                    </div>
+                    방장: {managers.join(', ') || '미지정'}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  {isHost && (
+                    <span className="badge badge-admin" style={{ fontSize: '10.5px' }}>
+                      방장 권한
+                    </span>
+                  )}
+                  <span style={{ fontSize: '11px', color: '#64748b' }}>
+                    총 {timelineItems.length}건
+                  </span>
+                </div>
+              </div>
 
-                    {/* Comments Toggle Button */}
-                    <button
-                      type="button"
-                      onClick={() => setOpenComments(prev => ({ ...prev, [post.id]: !prev[post.id] }))}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        color: 'var(--color-text-muted)',
+              {/* KakaoTalk Pinned Announcement Banner */}
+              {(upcomingSchedule || latestNotice) && (
+                <div style={{
+                  background: '#f8fafc',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '10px',
+                  padding: '8px 12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '8px'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                    <span style={{ fontSize: '14px', color: '#2563eb' }}>📢</span>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: '11px', fontWeight: '800', color: '#1d4ed8' }}>
+                        {upcomingSchedule ? '📌 다음 모임 일정' : '📌 모영 공지사항'}
+                      </div>
+                      <div style={{
                         fontSize: '12px',
                         fontWeight: '600',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                        padding: '4px 6px'
-                      }}
-                    >
-                      <MessageSquare size={13} />
-                      <span>댓글 {post.comments ? post.comments.length : 0}개</span>
-                      {openComments[post.id] ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-                    </button>
+                        color: '#334155',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis'
+                      }}>
+                        {upcomingSchedule 
+                          ? `${upcomingSchedule.title} (${upcomingSchedule.event_date}) 📍 ${upcomingSchedule.location}`
+                          : (latestNotice?.content || '')}
+                      </div>
+                    </div>
                   </div>
 
-                  {/* Comments Section (Expandable) */}
-                  {openComments[post.id] && (
-                    <div style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '8px',
-                      marginTop: '6px',
-                      padding: '10px 12px',
-                      background: '#f8fafc',
-                      borderRadius: 'var(--radius-md)'
-                    }}>
-                      {/* Comments List */}
-                      {post.comments && post.comments.length > 0 ? (
-                        post.comments
-                          .filter(c => !c.parent_comment_id)
-                          .map(parentComm => {
-                            const replies = post.comments?.filter(r => r.parent_comment_id === parentComm.id) || [];
-                            return (
-                              <div key={parentComm.id} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                {/* Top-Level Comment */}
-                                <div style={{
-                                  display: 'flex',
-                                  justifyContent: 'space-between',
-                                  alignItems: 'flex-start',
-                                  background: 'white',
-                                  padding: '7px 10px',
-                                  borderRadius: '8px',
-                                  border: '1px solid #f1f5f9'
-                                }}>
-                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', flex: 1 }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                      <span style={{ fontSize: '12px', fontWeight: '700', color: 'var(--color-text-main)' }}>
-                                        {parentComm.user_name}
-                                      </span>
-                                      <span style={{ fontSize: '10px', color: '#64748b' }}>
-                                        {parentComm.user_cell}
-                                      </span>
-                                      <span style={{ fontSize: '10px', color: '#94a3b8' }}>
-                                        {new Date(parentComm.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
-                                      </span>
-                                    </div>
-                                    <p style={{ fontSize: '12.5px', margin: '2px 0 0 0', color: '#1e293b', lineHeight: 1.4 }}>
-                                      {parentComm.content}
-                                    </p>
-                                    <div style={{ display: 'flex', gap: '8px', marginTop: '3px' }}>
-                                      <button
-                                        type="button"
-                                        onClick={() => setReplyingToId(replyingToId === parentComm.id ? null : parentComm.id)}
-                                        style={{
-                                          background: 'none',
-                                          border: 'none',
-                                          color: 'var(--color-primary)',
-                                          fontSize: '11px',
-                                          fontWeight: '600',
-                                          padding: 0,
-                                          cursor: 'pointer'
-                                        }}
-                                      >
-                                        답글 달기
-                                      </button>
-                                    </div>
-                                  </div>
+                  {upcomingSchedule && (
+                    <button
+                      type="button"
+                      onClick={() => handleToggleAttendance(upcomingSchedule.id)}
+                      className={upcomingSchedule.is_attending ? 'btn btn-sm btn-secondary' : 'btn btn-sm btn-primary'}
+                      style={{ fontSize: '11px', padding: '3px 9px', whiteSpace: 'nowrap', borderRadius: '6px', fontWeight: '700' }}
+                    >
+                      {upcomingSchedule.is_attending ? '참석 완료' : '저도 참석 🙋‍♂️'}
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
 
-                                  {(parentComm.user_id === user.id || isManager) && (
-                                    <button
-                                      type="button"
-                                      onClick={() => handleDeleteComment(parentComm.id)}
-                                      style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '2px' }}
-                                      title="댓글 삭제"
-                                    >
-                                      <Trash2 size={12} />
-                                    </button>
-                                  )}
+            {/* Scrollable Message Feed */}
+            <div
+              ref={chatContainerRef}
+              onScroll={handleChatScroll}
+              style={{
+                height: '500px',
+                overflowY: 'auto',
+                padding: '14px 12px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '12px',
+                scrollBehavior: 'smooth'
+              }}
+            >
+              {timelineItems.length === 0 ? (
+                <div style={{
+                  margin: 'auto',
+                  textAlign: 'center',
+                  background: 'rgba(255, 255, 255, 0.8)',
+                  padding: '20px 24px',
+                  borderRadius: '16px',
+                  color: '#475569',
+                  fontSize: '13px'
+                }}>
+                  아직 등록된 공지나 일정이 없습니다.<br />
+                  방장(총무)의 첫 번째 모임 공지를 기다려주세요! ⚽
+                </div>
+              ) : (
+                timelineItems.map((item, index) => {
+                  const showDivider = index === 0 || formatDateDivider(item.timestamp) !== formatDateDivider(timelineItems[index - 1].timestamp);
+
+                  return (
+                    <React.Fragment key={`${item.type}-${item.id}`}>
+                      {/* Date Divider Pill */}
+                      {showDivider && (
+                        <div style={{ display: 'flex', justifyContent: 'center', margin: '6px 0' }}>
+                          <span style={{
+                            background: 'rgba(0, 0, 0, 0.18)',
+                            color: 'white',
+                            fontSize: '11px',
+                            padding: '3px 12px',
+                            borderRadius: '12px',
+                            fontWeight: '500',
+                            backdropFilter: 'blur(2px)'
+                          }}>
+                            {formatDateDivider(item.timestamp)}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Item Type 1: Schedule Event Card */}
+                      {item.type === 'schedule' && (
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+                          {/* Profile Avatar */}
+                          <div style={{
+                            width: '34px',
+                            height: '34px',
+                            borderRadius: '50%',
+                            background: '#10b981',
+                            color: 'white',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '14px',
+                            fontWeight: '800',
+                            flexShrink: 0,
+                            boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
+                          }}>
+                            📅
+                          </div>
+
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', maxWidth: '340px' }}>
+                            {/* Author Header */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <span style={{ fontSize: '12px', fontWeight: '800', color: '#1e293b' }}>
+                                {item.data.creator_name}
+                              </span>
+                              <span style={{
+                                background: '#fef08a',
+                                color: '#854d0e',
+                                fontSize: '10px',
+                                fontWeight: '800',
+                                padding: '1px 5px',
+                                borderRadius: '4px'
+                              }}>
+                                👑 방장 공지
+                              </span>
+                            </div>
+
+                            {/* Schedule Event Bubble Card */}
+                            <div style={{
+                              background: '#ffffff',
+                              borderRadius: '4px 14px 14px 14px',
+                              padding: '12px 14px',
+                              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.12)',
+                              border: '1px solid #d1fae5',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '8px'
+                            }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                <div>
+                                  <span style={{
+                                    fontSize: '10.5px',
+                                    fontWeight: '800',
+                                    color: '#059669',
+                                    background: '#ecfdf5',
+                                    padding: '2px 6px',
+                                    borderRadius: '4px'
+                                  }}>
+                                    모임 일정 안내
+                                  </span>
+                                  <h4 style={{ fontSize: '14.5px', fontWeight: '800', color: '#065f46', margin: '4px 0 0 0' }}>
+                                    {item.data.title}
+                                  </h4>
                                 </div>
 
-                                {/* Nested Replies */}
-                                {replies.map(reply => (
-                                  <div
-                                    key={reply.id}
-                                    style={{
-                                      display: 'flex',
-                                      justifyContent: 'space-between',
-                                      alignItems: 'flex-start',
-                                      marginLeft: '18px',
-                                      background: '#f1f5f9',
-                                      padding: '6px 10px',
-                                      borderRadius: '8px',
-                                      borderLeft: '2px solid var(--color-primary)'
-                                    }}
+                                {isHost && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteSchedule(item.data.id)}
+                                    style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '2px' }}
+                                    title="일정 삭제"
                                   >
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', flex: 1 }}>
-                                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                        <CornerDownRight size={11} color="var(--color-primary)" />
-                                        <span style={{ fontSize: '11.5px', fontWeight: '700', color: 'var(--color-text-main)' }}>
-                                          {reply.user_name}
-                                        </span>
-                                        <span style={{ fontSize: '9.5px', color: '#64748b' }}>
-                                          {reply.user_cell}
-                                        </span>
-                                      </div>
-                                      <p style={{ fontSize: '12px', margin: '2px 0 0 15px', color: '#1e293b', lineHeight: 1.4 }}>
-                                        {reply.content}
-                                      </p>
-                                    </div>
-                                    {(reply.user_id === user.id || isManager) && (
-                                      <button
-                                        type="button"
-                                        onClick={() => handleDeleteComment(reply.id)}
-                                        style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '2px' }}
-                                        title="답글 삭제"
-                                      >
-                                        <Trash2 size={11} />
-                                      </button>
-                                    )}
-                                  </div>
-                                ))}
+                                    <Trash2 size={13} />
+                                  </button>
+                                )}
+                              </div>
 
-                                {/* Reply Input Box (when replyingToId === parentComm.id) */}
-                                {replyingToId === parentComm.id && (
-                                  <div style={{ display: 'flex', gap: '6px', marginLeft: '18px', marginTop: '2px' }}>
+                              {/* Details Grid */}
+                              <div style={{
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '4px',
+                                background: '#f8fafc',
+                                padding: '8px 10px',
+                                borderRadius: '8px',
+                                fontSize: '12px',
+                                color: '#334155'
+                              }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  <Clock size={13} color="#10b981" />
+                                  <span style={{ fontWeight: '600' }}>{item.data.event_date}</span>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  <MapPin size={13} color="#ef4444" />
+                                  <span>{item.data.location}</span>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  <DollarSign size={13} color="#f59e0b" />
+                                  <span>{item.data.fee_info}</span>
+                                </div>
+                              </div>
+
+                              {/* Attendees List */}
+                              <div>
+                                <div style={{ fontSize: '11px', fontWeight: '700', color: '#475569', marginBottom: '4px' }}>
+                                  참석 성도 ({item.data.attendees.length}명):
+                                </div>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                                  {item.data.attendees.length > 0 ? (
+                                    item.data.attendees.map(a => (
+                                      <span
+                                        key={a.userId}
+                                        style={{
+                                          background: '#ecfdf5',
+                                          color: '#047857',
+                                          fontSize: '11px',
+                                          padding: '1px 6px',
+                                          borderRadius: '10px',
+                                          fontWeight: '600'
+                                        }}
+                                      >
+                                        {a.userName}
+                                      </span>
+                                    ))
+                                  ) : (
+                                    <span style={{ fontSize: '11px', color: '#94a3b8' }}>
+                                      첫 번째로 참석을 신청해보세요!
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* One-click Attend Button */}
+                              <button
+                                type="button"
+                                onClick={() => handleToggleAttendance(item.data.id)}
+                                className={item.data.is_attending ? 'btn btn-secondary' : 'btn btn-primary'}
+                                style={{
+                                  padding: '7px 0',
+                                  fontSize: '12.5px',
+                                  fontWeight: '700',
+                                  width: '100%',
+                                  marginTop: '2px',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  gap: '6px'
+                                }}
+                              >
+                                {item.data.is_attending ? (
+                                  <>
+                                    <Check size={14} />
+                                    참석 신청 완료 (취소하기)
+                                  </>
+                                ) : (
+                                  <>
+                                    <Users size={14} />
+                                    저도 참석할게요! 🙋‍♂️
+                                  </>
+                                )}
+                              </button>
+                            </div>
+
+                            <span style={{ fontSize: '10px', color: 'rgba(0, 0, 0, 0.45)', marginLeft: '2px' }}>
+                              {formatMessageTime(item.timestamp)}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Item Type 2: Post / Notice / Photo Message */}
+                      {item.type === 'post' && (
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+                          {/* Profile Avatar */}
+                          <div style={{
+                            width: '34px',
+                            height: '34px',
+                            borderRadius: '50%',
+                            background: managers.includes(item.data.user_name) ? '#2563eb' : '#64748b',
+                            color: 'white',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '12.5px',
+                            fontWeight: '800',
+                            flexShrink: 0,
+                            boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
+                          }}>
+                            {item.data.user_name.slice(0, 1)}
+                          </div>
+
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', maxWidth: '320px' }}>
+                            {/* Author Header */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <span style={{ fontSize: '12px', fontWeight: '800', color: '#1e293b' }}>
+                                {item.data.user_name}
+                              </span>
+                              {managers.includes(item.data.user_name) ? (
+                                <span style={{
+                                  background: '#fef08a',
+                                  color: '#854d0e',
+                                  fontSize: '10px',
+                                  fontWeight: '800',
+                                  padding: '1px 5px',
+                                  borderRadius: '4px'
+                                }}>
+                                  👑 총무 (방장)
+                                </span>
+                              ) : (
+                                <span style={{ fontSize: '10px', color: '#64748b' }}>
+                                  {item.data.user_cell}
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Message Bubble Card */}
+                            <div style={{
+                              background: '#ffffff',
+                              borderRadius: '4px 14px 14px 14px',
+                              padding: '10px 12px',
+                              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+                              border: item.data.content.startsWith('[공지]') ? '1.5px solid #93c5fd' : 'none',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '6px'
+                            }}>
+                              {/* Notice tag if present */}
+                              {item.data.content.startsWith('[공지]') && (
+                                <div style={{
+                                  fontSize: '11px',
+                                  fontWeight: '800',
+                                  color: '#1d4ed8',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '4px'
+                                }}>
+                                  <Megaphone size={12} />
+                                  방장 공지사항
+                                </div>
+                              )}
+
+                              {/* Text Content */}
+                              <p style={{
+                                fontSize: '13px',
+                                color: '#1e293b',
+                                lineHeight: 1.5,
+                                whiteSpace: 'pre-line',
+                                margin: 0
+                              }}>
+                                {item.data.content.replace(/^\[공지\]\s*/, '')}
+                              </p>
+
+                              {/* Photo Attachment (if any) */}
+                              {item.data.image_url && (
+                                <img
+                                  src={item.data.image_url}
+                                  alt="공지 첨부 사진"
+                                  onClick={() => setLightboxPhoto(item.data.image_url!)}
+                                  style={{
+                                    maxWidth: '100%',
+                                    maxHeight: '220px',
+                                    objectFit: 'cover',
+                                    borderRadius: '8px',
+                                    cursor: 'pointer',
+                                    marginTop: '4px',
+                                    border: '1px solid #e2e8f0'
+                                  }}
+                                />
+                              )}
+
+                              {/* Reactions & Comments Bar */}
+                              <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                flexWrap: 'wrap',
+                                gap: '4px',
+                                paddingTop: '6px',
+                                marginTop: '2px',
+                                borderTop: '1px solid #f1f5f9'
+                              }}>
+                                {/* Emoji Reaction Stickers */}
+                                <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                                  {[
+                                    { emoji: 'amen', label: '🙏 아멘' },
+                                    { emoji: 'heart', label: '❤️ 은혜' },
+                                    { emoji: 'like', label: '👍 좋아요' },
+                                    { emoji: 'fire', label: '🔥 파이팅' },
+                                  ].map(({ emoji, label }) => {
+                                    const count = item.data.reactions ? (item.data.reactions[emoji] || 0) : 0;
+                                    const isReacted = item.data.my_reactions?.includes(emoji);
+                                    return (
+                                      <button
+                                        key={emoji}
+                                        type="button"
+                                        onClick={() => handleToggleReaction('post', item.data.id, emoji)}
+                                        style={{
+                                          background: isReacted ? '#eff6ff' : '#f8fafc',
+                                          color: isReacted ? 'var(--color-primary)' : '#64748b',
+                                          border: isReacted ? '1px solid var(--color-primary)' : '1px solid #e2e8f0',
+                                          borderRadius: '12px',
+                                          padding: '2px 6px',
+                                          fontSize: '11px',
+                                          fontWeight: isReacted ? '700' : '500',
+                                          cursor: 'pointer',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          gap: '3px'
+                                        }}
+                                      >
+                                        <span>{label}</span>
+                                        {count > 0 && <span style={{ fontWeight: '700' }}>{count}</span>}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+
+                                {/* Comments Accordion Button */}
+                                <button
+                                  type="button"
+                                  onClick={() => setOpenComments(prev => ({ ...prev, [item.data.id]: !prev[item.data.id] }))}
+                                  style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    color: '#64748b',
+                                    fontSize: '11px',
+                                    fontWeight: '600',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '3px',
+                                    padding: '2px 4px'
+                                  }}
+                                >
+                                  <MessageSquare size={12} />
+                                  <span>댓글 {item.data.comments ? item.data.comments.length : 0}</span>
+                                  {openComments[item.data.id] ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+                                </button>
+                              </div>
+
+                              {/* Comments Section */}
+                              {openComments[item.data.id] && (
+                                <div style={{
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  gap: '6px',
+                                  marginTop: '4px',
+                                  padding: '8px',
+                                  background: '#f8fafc',
+                                  borderRadius: '8px'
+                                }}>
+                                  {item.data.comments && item.data.comments.length > 0 ? (
+                                    item.data.comments
+                                      .filter(c => !c.parent_comment_id)
+                                      .map(parentComm => {
+                                        const replies = item.data.comments?.filter(r => r.parent_comment_id === parentComm.id) || [];
+                                        return (
+                                          <div key={parentComm.id} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                            <div style={{
+                                              background: 'white',
+                                              padding: '6px 8px',
+                                              borderRadius: '6px',
+                                              border: '1px solid #e2e8f0',
+                                              display: 'flex',
+                                              justifyContent: 'space-between',
+                                              alignItems: 'flex-start'
+                                            }}>
+                                              <div>
+                                                <span style={{ fontSize: '11px', fontWeight: '700', color: '#1e293b' }}>
+                                                  {parentComm.user_name}
+                                                </span>
+                                                <span style={{ fontSize: '9.5px', color: '#94a3b8', marginLeft: '4px' }}>
+                                                  ({parentComm.user_cell})
+                                                </span>
+                                                <p style={{ fontSize: '11.5px', color: '#334155', margin: '2px 0 0 0' }}>
+                                                  {parentComm.content}
+                                                </p>
+                                              </div>
+                                              {(parentComm.user_id === user.id || isHost) && (
+                                                <button
+                                                  type="button"
+                                                  onClick={() => handleDeleteComment(parentComm.id)}
+                                                  style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '2px' }}
+                                                >
+                                                  <Trash2 size={11} />
+                                                </button>
+                                              )}
+                                            </div>
+
+                                            {/* Replies */}
+                                            {replies.map(r => (
+                                              <div key={r.id} style={{
+                                                marginLeft: '14px',
+                                                background: '#f1f5f9',
+                                                padding: '4px 8px',
+                                                borderRadius: '6px',
+                                                display: 'flex',
+                                                justifyContent: 'space-between'
+                                              }}>
+                                                <div>
+                                                  <span style={{ fontSize: '10.5px', fontWeight: '700' }}>↳ {r.user_name}</span>
+                                                  <p style={{ fontSize: '11px', margin: 0 }}>{r.content}</p>
+                                                </div>
+                                                {(r.user_id === user.id || isHost) && (
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => handleDeleteComment(r.id)}
+                                                    style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}
+                                                  >
+                                                    <Trash2 size={10} />
+                                                  </button>
+                                                )}
+                                              </div>
+                                            ))}
+                                          </div>
+                                        );
+                                      })
+                                  ) : (
+                                    <div style={{ fontSize: '11px', color: '#94a3b8', textAlign: 'center', padding: '4px 0' }}>
+                                      댓글이 없습니다.
+                                    </div>
+                                  )}
+
+                                  {/* Add Comment Input */}
+                                  <div style={{ display: 'flex', gap: '4px', marginTop: '2px' }}>
                                     <input
                                       type="text"
                                       className="form-input"
-                                      placeholder={`@${parentComm.user_name} 님에게 답글 작성...`}
-                                      value={replyInputs[parentComm.id] || ''}
-                                      onChange={(e) => setReplyInputs({ ...replyInputs, [parentComm.id]: e.target.value })}
-                                      onKeyDown={(e) => { if (e.key === 'Enter') handleAddComment(post.id, parentComm.id); }}
-                                      style={{ flex: 1, fontSize: '12px', padding: '5px 8px' }}
+                                      placeholder="댓글 입력..."
+                                      value={commentInputs[item.data.id] || ''}
+                                      onChange={(e) => setCommentInputs({ ...commentInputs, [item.data.id]: e.target.value })}
+                                      onKeyDown={(e) => { if (e.key === 'Enter') handleAddComment(item.data.id); }}
+                                      style={{ flex: 1, fontSize: '11.5px', padding: '4px 8px', background: 'white' }}
                                     />
                                     <button
                                       type="button"
-                                      onClick={() => handleAddComment(post.id, parentComm.id)}
+                                      onClick={() => handleAddComment(item.data.id)}
                                       className="btn btn-primary"
                                       style={{ padding: '4px 10px', fontSize: '11.5px' }}
                                     >
                                       등록
                                     </button>
                                   </div>
-                                )}
-                              </div>
-                            );
-                          })
-                      ) : (
-                        <div style={{ fontSize: '12px', color: '#94a3b8', textAlign: 'center', padding: '6px 0' }}>
-                          아직 작성된 댓글이 없습니다. 첫 댓글을 남겨보세요!
+                                </div>
+                              )}
+                            </div>
+
+                            <span style={{ fontSize: '10px', color: 'rgba(0, 0, 0, 0.45)', marginLeft: '2px' }}>
+                              {formatMessageTime(item.timestamp)}
+                            </span>
+                          </div>
                         </div>
                       )}
+                    </React.Fragment>
+                  );
+                })
+              )}
+              <div ref={chatEndRef} />
+            </div>
 
-                      {/* Top-Level Comment Input */}
-                      <div style={{ display: 'flex', gap: '6px', marginTop: '4px' }}>
-                        <input
-                          type="text"
-                          className="form-input"
-                          placeholder="댓글을 남겨 은혜와 응원을 전해주세요..."
-                          value={commentInputs[post.id] || ''}
-                          onChange={(e) => setCommentInputs({ ...commentInputs, [post.id]: e.target.value })}
-                          onKeyDown={(e) => { if (e.key === 'Enter') handleAddComment(post.id); }}
-                          style={{ flex: 1, fontSize: '12px', padding: '6px 10px', background: 'white' }}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleAddComment(post.id)}
-                          className="btn btn-primary"
-                          style={{ padding: '6px 12px', fontSize: '12px' }}
-                        >
-                          등록
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))
+            {/* Scroll-to-Bottom Floating Button */}
+            {showScrollBottom && (
+              <button
+                type="button"
+                onClick={() => scrollToBottom('smooth')}
+                style={{
+                  position: 'absolute',
+                  bottom: isHost ? '110px' : '65px',
+                  right: '16px',
+                  background: 'white',
+                  color: 'var(--color-primary)',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '20px',
+                  padding: '5px 12px',
+                  fontSize: '11.5px',
+                  fontWeight: '700',
+                  boxShadow: '0 4px 8px rgba(0,0,0,0.15)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  cursor: 'pointer',
+                  zIndex: 10
+                }}
+              >
+                <ChevronDown size={14} />
+                최신 글로
+              </button>
+            )}
+
+            {/* Bottom Input Area: Locked for Regular Members vs Controls for Room Master */}
+            {!isHost ? (
+              /* KakaoTalk Room Host Disabled Chat Bar */
+              <div style={{
+                padding: '14px 16px',
+                background: '#d1d8e0',
+                color: '#475569',
+                borderTop: '1px solid #c0c9d3',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                fontSize: '13px',
+                fontWeight: '700'
+              }}>
+                <Lock size={16} color="#64748b" />
+                <span>방장이 채팅을 금지했습니다. (공지 및 일정 확인 전용)</span>
+              </div>
             ) : (
-              <div className="card" style={{ padding: '24px', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '13px' }}>
-                아직 등록된 나눔 글이 없습니다. 첫 번째 글을 남겨보세요!
+              /* Room Master Control & Input Bar */
+              <div style={{
+                background: 'white',
+                borderTop: '1px solid #cbd5e1',
+                padding: '10px 12px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px'
+              }}>
+                {/* Host Action Buttons */}
+                <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowSchedModal(true)}
+                    className="btn btn-sm btn-secondary"
+                    style={{
+                      fontSize: '11.5px',
+                      padding: '4px 9px',
+                      fontWeight: '700',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      background: '#ecfdf5',
+                      color: '#047857',
+                      border: '1px solid #a7f3d0'
+                    }}
+                  >
+                    <Calendar size={13} />
+                    + 일정 등록
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowAttachImage(!showAttachImage)}
+                    className="btn btn-sm btn-secondary"
+                    style={{
+                      fontSize: '11.5px',
+                      padding: '4px 9px',
+                      fontWeight: '700',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      background: showAttachImage ? '#eff6ff' : '#f8fafc',
+                      color: showAttachImage ? 'var(--color-primary)' : 'var(--color-text-main)',
+                      border: '1px solid var(--color-border)'
+                    }}
+                  >
+                    <ImageIcon size={13} />
+                    + 사진 올리기
+                  </button>
+
+                  <label style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    fontSize: '11.5px',
+                    fontWeight: '700',
+                    color: '#2563eb',
+                    cursor: 'pointer',
+                    marginLeft: 'auto'
+                  }}>
+                    <input
+                      type="checkbox"
+                      checked={isNoticePost}
+                      onChange={(e) => setIsNoticePost(e.target.checked)}
+                    />
+                    📢 방장 공지로 등록
+                  </label>
+                </div>
+
+                {/* Main Screen Photo Upload Box */}
+                {showAttachImage && (
+                  <div style={{
+                    background: '#f8fafc',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '8px',
+                    padding: '8px 10px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '6px'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '11px', fontWeight: '700', color: '#475569' }}>
+                        📷 메인 화면 사진 올리기 (이미지 URL 입력)
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => { setShowAttachImage(false); setPostImageUrl(''); }}
+                        style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}
+                      >
+                        <X size={13} />
+                      </button>
+                    </div>
+
+                    <input
+                      type="text"
+                      className="form-input"
+                      placeholder="이미지 URL을 입력하세요 (https://...)"
+                      value={postImageUrl}
+                      onChange={(e) => setPostImageUrl(e.target.value)}
+                      style={{ fontSize: '12px', padding: '5px 8px' }}
+                    />
+
+                    {/* Quick Presets */}
+                    <div style={{ display: 'flex', gap: '4px', alignItems: 'center', flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: '10.5px', color: '#94a3b8' }}>테스트 사진:</span>
+                      {[
+                        { label: '⚽ 풋살/축구', url: 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?auto=format&fit=crop&w=800&q=80' },
+                        { label: '🏸 배드민턴', url: 'https://images.unsplash.com/photo-1626224583764-f87db24ac4ea?auto=format&fit=crop&w=800&q=80' },
+                        { label: '🎳 볼링', url: 'https://images.unsplash.com/photo-1538370965046-79c0d6907d47?auto=format&fit=crop&w=800&q=80' },
+                        { label: '👥 단체 모임', url: 'https://images.unsplash.com/photo-1511632765486-a01980e01a18?auto=format&fit=crop&w=800&q=80' },
+                      ].map(item => (
+                        <button
+                          key={item.label}
+                          type="button"
+                          onClick={() => setPostImageUrl(item.url)}
+                          className="btn btn-sm btn-secondary"
+                          style={{ fontSize: '10px', padding: '2px 6px', borderRadius: '4px' }}
+                        >
+                          {item.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Message Input & Send Form */}
+                <form onSubmit={handleCreatePost} style={{ display: 'flex', gap: '6px', alignItems: 'flex-end' }}>
+                  <textarea
+                    className="form-textarea"
+                    rows={2}
+                    placeholder="[방장] 모영 성도들에게 전달할 공지나 일정을 입력하세요..."
+                    value={postContent}
+                    onChange={(e) => setPostContent(e.target.value)}
+                    required={!postImageUrl}
+                    style={{ flex: 1, fontSize: '12.5px', padding: '7px 10px', minHeight: '44px', resize: 'none' }}
+                  />
+                  <button
+                    type="submit"
+                    className="btn btn-primary"
+                    style={{
+                      padding: '8px 16px',
+                      fontSize: '13px',
+                      fontWeight: '700',
+                      height: '44px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      borderRadius: '8px'
+                    }}
+                  >
+                    <Send size={15} />
+                    전송
+                  </button>
+                </form>
               </div>
             )}
           </div>
@@ -1413,86 +1895,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
         </div>
       )}
 
-      {/* ======================================================== */}
-      {/* TAB 4: PHOTOS (활동 앨범 & 갤러리)                        */}
-      {/* ======================================================== */}
-      {activeTab === 'photos' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '13.5px', fontWeight: '700', color: 'var(--color-text-muted)' }}>
-              모영 활동 사진 ({photos.length}장)
-            </span>
-            <button
-              onClick={() => setShowPhotoModal(true)}
-              className="btn btn-primary"
-              style={{ fontSize: '12.5px', padding: '7px 14px', display: 'flex', alignItems: 'center', gap: '5px' }}
-            >
-              <Plus size={14} />
-              사진 올리기
-            </button>
-          </div>
 
-          {photos.length > 0 ? (
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
-              gap: '12px'
-            }}>
-              {photos.map((p) => (
-                <div
-                  key={p.id}
-                  className="card"
-                  style={{
-                    padding: '8px',
-                    position: 'relative',
-                    overflow: 'hidden',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '6px',
-                    cursor: 'pointer'
-                  }}
-                  onClick={() => setLightboxPhoto(p.image_url)}
-                >
-                  <img
-                    src={p.image_url}
-                    alt={p.caption || '활동 사진'}
-                    style={{
-                      width: '100%',
-                      height: '130px',
-                      objectFit: 'cover',
-                      borderRadius: 'var(--radius-sm)',
-                    }}
-                  />
-                  {p.caption && (
-                    <div style={{ fontSize: '11.5px', color: 'var(--color-text-main)', fontWeight: '600', lineHeight: 1.3 }}>
-                      {p.caption}
-                    </div>
-                  )}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '10.5px', color: 'var(--color-text-light)' }}>
-                    <span>{p.user_name}</span>
-                    {(p.user_id === user.id || isManager) && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeletePhoto(p.id);
-                        }}
-                        style={{ background: 'none', border: 'none', color: 'var(--color-danger)', cursor: 'pointer', padding: '2px' }}
-                        title="사진 삭제"
-                      >
-                        <Trash2 size={12} />
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="card" style={{ padding: '28px', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '13px' }}>
-              아직 등록된 사진이 없습니다. 모임 현장 사진을 올려보세요! 📸
-            </div>
-          )}
-        </div>
-      )}
 
       {/* ======================================================== */}
       {/* MODAL 1: EDIT CLUB INFO (Managers only)                   */}
@@ -1744,78 +2147,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
         </div>
       )}
 
-      {/* ======================================================== */}
-      {/* MODAL 4: PHOTO UPLOAD MODAL                              */}
-      {/* ======================================================== */}
-      {showPhotoModal && (
-        <div className="modal-overlay">
-          <div className="modal-content animate-fade-in" style={{ maxWidth: '420px', padding: '20px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-              <h3 style={{ fontSize: '16px', fontWeight: '800', margin: 0 }}>
-                📸 활동 사진 올리기
-              </h3>
-              <button onClick={() => setShowPhotoModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
-                <X size={18} />
-              </button>
-            </div>
 
-            <form onSubmit={handleAddPhoto} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <div>
-                <label className="form-label">이미지 URL</label>
-                <input
-                  type="text"
-                  className="form-input"
-                  placeholder="https://..."
-                  value={photoUrl}
-                  onChange={(e) => setPhotoUrl(e.target.value)}
-                  required
-                />
-                <div style={{ marginTop: '6px', fontSize: '11px', color: 'var(--color-text-muted)' }}>
-                  💡 테스트용 빠른 선택:
-                </div>
-                <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginTop: '4px' }}>
-                  {[
-                    { label: '⚽ 축구', url: 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?auto=format&fit=crop&w=800&q=80' },
-                    { label: '🏸 배드민턴', url: 'https://images.unsplash.com/photo-1626224583764-f87db24ac4ea?auto=format&fit=crop&w=800&q=80' },
-                    { label: '🎳 볼링', url: 'https://images.unsplash.com/photo-1538370965046-79c0d6907d47?auto=format&fit=crop&w=800&q=80' },
-                    { label: '📚 도서', url: 'https://images.unsplash.com/photo-1497633762265-9d179a990aa6?auto=format&fit=crop&w=800&q=80' },
-                  ].map(item => (
-                    <button
-                      key={item.label}
-                      type="button"
-                      onClick={() => setPhotoUrl(item.url)}
-                      className="btn btn-sm btn-secondary"
-                      style={{ fontSize: '10.5px', padding: '2px 6px' }}
-                    >
-                      {item.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="form-label">사진 설명 (선택)</label>
-                <input
-                  type="text"
-                  className="form-input"
-                  placeholder="예: 즐거웠던 경기 후 기념 샷!"
-                  value={photoCaption}
-                  onChange={(e) => setPhotoCaption(e.target.value)}
-                />
-              </div>
-
-              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '6px' }}>
-                <button type="button" className="btn btn-secondary" onClick={() => setShowPhotoModal(false)}>
-                  취소
-                </button>
-                <button type="submit" className="btn btn-primary">
-                  사진 등록 완료
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
       {/* Lightbox Preview */}
       {lightboxPhoto && (

@@ -7,7 +7,7 @@ import { Megaphone, Flame, Users, Calendar, ArrowRight, ChevronDown, ChevronUp, 
 interface LobbyPageProps {
   user: User;
   onUpdateUser: (updated: Partial<User>) => void;
-  onNavigateClub: (clubId: number, initialTab?: 'polls' | 'posts' | 'schedules' | 'photos') => void;
+  onNavigateClub: (clubId: number, initialTab?: 'talk' | 'polls' | 'posts' | 'schedules' | 'photos') => void;
 }
 
 export const LobbyPage: React.FC<LobbyPageProps> = ({ user, onUpdateUser, onNavigateClub }) => {
@@ -47,7 +47,7 @@ export const LobbyPage: React.FC<LobbyPageProps> = ({ user, onUpdateUser, onNavi
   }, []);
 
   const handleClubClick = (club: Club) => {
-    onNavigateClub(club.id, 'polls');
+    onNavigateClub(club.id, 'talk');
   };
 
   return (
