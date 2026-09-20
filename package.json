@@ -1,0 +1,18 @@
+{
+  "name": "dfmc_moyoung",
+  "version": "1.0.0",
+  "description": "우리교회 동호회 모바일 웹사이트 (둔산제일교회)",
+  "scripts": {
+    "dev": "concurrently -n \"SERVER,CLIENT\" -c \"blue,green\" \"npm run dev --prefix server\" \"npm run dev --prefix client\"",
+    "build:server": "npm run build --prefix server",
+    "build:client": "npm run build --prefix client",
+    "build": "npm run build:server && npm run build:client",
+    "start": "node server/dist/index.js"
+  },
+  "keywords": ["church", "fellowship", "community", "mobile-web"],
+  "author": "DFMC",
+  "license": "ISC",
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
