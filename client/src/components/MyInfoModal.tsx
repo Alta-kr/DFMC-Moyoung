@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { User, CellItem } from '../types';
-import { User as UserIcon, X, Check, RefreshCw, Shield, Users, AlertCircle } from 'lucide-react';
+import { User } from '../types';
+import { User as UserIcon, X, Check, RefreshCw, AlertCircle } from 'lucide-react';
 
 interface MyInfoModalProps {
   user: User;
@@ -13,39 +13,88 @@ export const MyInfoModal: React.FC<MyInfoModalProps> = ({
   onClose,
   onUserUpdated,
 }) => {
-  const [cells, setCells] = useState<CellItem[]>([]);
-  const [selectedCell, setSelectedCell] = useState(user.cell_name);
-  const [customInput, setCustomInput] = useState('');
+  const [cellInput, setCellInput] = useState(user.cell_name);
+  const [availableCells, setAvailableCells] = useState<{ id: number; name: string }[]>([]);
+  const [leaderClubs, setLeaderClubs] = useState<string[]>(user.leader_clubs || []);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
-  // Fetch church registered cells list
+  const [showBugReport, setShowBugReport] = useState(false);
+  const [bugTitle, setBugTitle] = useState('');
+  const [bugContent, setBugContent] = useState('');
+  const [bugLoading, setBugLoading] = useState(false);
+
+  const handleBugSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!bugTitle.trim() || !bugContent.trim()) return;
+    setBugLoading(true);
+    try {
+      const res = await fetch('/api/reports', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: bugTitle,
+          content: bugContent,
+          user_id: user.id,
+          user_name: user.name,
+          user_cell: user.cell_name
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      alert('버그 제보가 성공적으로 접수되었습니다. 감사합니다!');
+      setShowBugReport(false);
+      setBugTitle('');
+      setBugContent('');
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setBugLoading(false);
+    }
+  };
+
+  // Fetch church clubs & cells to validate registered cells in real-time
   useEffect(() => {
     fetch('/api/lobby/data')
       .then((res) => res.json())
       .then((data) => {
         if (data.cells) {
-          setCells(data.cells);
+          setAvailableCells(data.cells);
+        }
+        if (data.clubs) {
+          const myClubs: string[] = [];
+          data.clubs.forEach((c: any) => {
+            const managers = (c.manager_names || '').split(',').map((s: string) => s.trim());
+            if (managers.includes(user.name.trim())) {
+              myClubs.push(c.name);
+            }
+          });
+          setLeaderClubs(myClubs);
         }
       })
-      .catch((err) => console.error('Failed to load cells:', err));
-  }, []);
+      .catch((err) => console.error('Failed to load lobby data for my-info:', err));
+  }, [user.name]);
 
   const handleCellChange = async (e: React.FormEvent) => {
     e.preventDefault();
-    const cellValue = selectedCell === 'custom' ? customInput.trim() : selectedCell.trim();
+    const cellValue = cellInput.trim();
 
     if (!cellValue) {
-      setError('변경하실 소속 셀을 선택하거나 입력해주세요.');
+      setError('소속 셀 이름을 입력해주세요.');
       return;
     }
 
-    if (cellValue === user.cell_name) {
-      setError('현재 소속 셀과 동일합니다.');
-      return;
+    // 셀 목록에 존재하는지 확인 (없으면 디나이)
+    if (availableCells.length > 0) {
+      const match = availableCells.find(c => c.name.trim() === cellValue);
+      if (!match) {
+        setError(`등록된 교회 셀 목록에 [${cellValue}] 셀이 존재하지 않습니다. 등록된 셀 명단을 확인해주세요.`);
+        return;
+      }
     }
 
+    // 기존 셀과 동일하더라도 경고/에러 문구를 띄우지 않고 저장
     setLoading(true);
     setError('');
     setSuccessMsg('');
@@ -66,7 +115,7 @@ export const MyInfoModal: React.FC<MyInfoModalProps> = ({
         throw new Error(resData.error || '소속 셀 변경에 실패했습니다.');
       }
 
-      setSuccessMsg(`소속 셀이 [${resData.cell_name}] (으)로 변경되었습니다! 🎉`);
+      setSuccessMsg(`소속 셀이 [${resData.cell_name}] (으)로 저장되었습니다!`);
       if (resData.token) {
         localStorage.setItem('dfmc_token', resData.token);
       }
@@ -78,7 +127,7 @@ export const MyInfoModal: React.FC<MyInfoModalProps> = ({
 
       setTimeout(() => {
         onClose();
-      }, 1500);
+      }, 1200);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -86,21 +135,53 @@ export const MyInfoModal: React.FC<MyInfoModalProps> = ({
     }
   };
 
-  const getRoleBadge = () => {
-    switch (user.role) {
-      case 'server_admin':
-        return <span className="badge badge-server">서버관리자</span>;
-      case 'head_admin':
-        return <span className="badge badge-admin">전체 관리자</span>;
-      case 'media_admin':
-        return (
-          <span className="badge" style={{ background: '#ede9fe', color: '#6d28d9', border: '1px solid #ddd6fe' }}>
-            미디어관리자
-          </span>
-        );
-      default:
-        return <span className="badge" style={{ background: '#f1f5f9', color: '#475569' }}>일반 성도</span>;
+  // 일반 성도인지 여부 (관리자가 아니고 총무도 아닌 경우)
+  const isPlainMember = user.role === 'member' && (!leaderClubs || leaderClubs.length === 0);
+
+  const renderRoleBadge = () => {
+    if (user.role === 'server_admin') {
+      return <span className="badge badge-server">서버관리자</span>;
     }
+    if (user.role === 'head_admin') {
+      return <span className="badge badge-admin">전체 관리자</span>;
+    }
+    if (user.role === 'media_admin') {
+      return (
+        <span className="badge" style={{ background: '#ede9fe', color: '#6d28d9', border: '1px solid #ddd6fe' }}>
+          미디어관리자
+        </span>
+      );
+    }
+    if (user.role === 'guest') {
+      return (
+        <span className="badge" style={{ background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', fontWeight: '800' }}>
+          게스트
+        </span>
+      );
+    }
+    if (leaderClubs && leaderClubs.length > 0) {
+      return (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', justifyContent: 'flex-end' }}>
+          {leaderClubs.map((clubName) => (
+            <span
+              key={clubName}
+              className="badge"
+              style={{
+                background: '#0f172a',
+                color: '#ffffff',
+                fontWeight: '800',
+                fontSize: '11px',
+                padding: '2px 8px',
+                borderRadius: '6px'
+              }}
+            >
+              {clubName.endsWith('모영') ? `${clubName} 총무` : `${clubName} 모영 총무`}
+            </span>
+          ))}
+        </div>
+      );
+    }
+    return null;
   };
 
   return (
@@ -199,10 +280,13 @@ export const MyInfoModal: React.FC<MyInfoModalProps> = ({
             <span style={{ fontSize: '13px', color: '#475569', fontFamily: 'monospace' }}>{user.username}</span>
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '12.5px', color: 'var(--color-text-muted)', fontWeight: '600' }}>현재 권한</span>
-            <div>{getRoleBadge()}</div>
-          </div>
+          {/* 현재 권한: 일반 성도(비총무)에게는 항목 자체를 숨김, 총무는 '풋살 모영 총무' 등 표시, 관리자는 관리자 뱃지 표시 */}
+          {!isPlainMember && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '12.5px', color: 'var(--color-text-muted)', fontWeight: '600' }}>현재 권한</span>
+              <div>{renderRoleBadge()}</div>
+            </div>
+          )}
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: '12.5px', color: 'var(--color-text-muted)', fontWeight: '600' }}>현재 소속 셀</span>
@@ -219,7 +303,7 @@ export const MyInfoModal: React.FC<MyInfoModalProps> = ({
           </div>
         </div>
 
-        {/* Change Cell Form */}
+        {/* Change Cell Form (수기 직접 작성) */}
         <form onSubmit={handleCellChange} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
@@ -227,43 +311,20 @@ export const MyInfoModal: React.FC<MyInfoModalProps> = ({
                 소속 셀 변경하기
               </label>
               <span style={{ fontSize: '11px', color: 'var(--color-text-light)' }}>
-                이동하신 새 셀을 선택하세요
+                새 소속 셀을 수기로 직접 입력하세요
               </span>
             </div>
 
-            <select
-              className="form-select"
-              value={selectedCell}
-              onChange={(e) => setSelectedCell(e.target.value)}
-              style={{ fontSize: '13px' }}
+            <input
+              type="text"
+              className="form-input"
+              placeholder="예: 1청년부 1셀, 2청년부 3셀 등"
+              value={cellInput}
+              onChange={(e) => setCellInput(e.target.value)}
               required
-            >
-              <option value="">-- 소속 셀을 선택하세요 --</option>
-              {cells.map((c) => (
-                <option key={c.id} value={c.name}>
-                  {c.name} {c.name === user.cell_name ? '(현재 소속)' : ''}
-                </option>
-              ))}
-              <option value="custom">직접 입력 (새 셀 또는 지인/인도자 실명)</option>
-            </select>
+              style={{ fontSize: '13px' }}
+            />
           </div>
-
-          {selectedCell === 'custom' && (
-            <div>
-              <label className="form-label" style={{ fontSize: '12px' }}>
-                직접 입력 (공식 셀 명칭 또는 교회 지인 성도 실명)
-              </label>
-              <input
-                type="text"
-                className="form-input"
-                placeholder="예: 2청년부 3셀 또는 김철수"
-                value={customInput}
-                onChange={(e) => setCustomInput(e.target.value)}
-                required
-                style={{ fontSize: '13px' }}
-              />
-            </div>
-          )}
 
           <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '6px' }}>
             <button
@@ -285,6 +346,46 @@ export const MyInfoModal: React.FC<MyInfoModalProps> = ({
             </button>
           </div>
         </form>
+
+        <div style={{ marginTop: '20px', borderTop: '1px solid #e2e8f0', paddingTop: '15px' }}>
+          <button
+            onClick={() => setShowBugReport(!showBugReport)}
+            style={{
+              background: 'none', border: 'none', color: '#64748b', fontSize: '12px',
+              textDecoration: 'underline', cursor: 'pointer', padding: 0
+            }}
+          >
+            고객센터 / 버그 제보하기
+          </button>
+
+          {showBugReport && (
+            <form onSubmit={handleBugSubmit} style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '8px', background: '#f8fafc', padding: '10px', borderRadius: '8px' }}>
+              <input
+                type="text"
+                placeholder="제목 (예: 일정 오류, 로그인 안됨 등)"
+                value={bugTitle}
+                onChange={e => setBugTitle(e.target.value)}
+                style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px' }}
+                required
+              />
+              <textarea
+                placeholder="어떤 문제가 발생했나요? 자세히 적어주시면 해결에 큰 도움이 됩니다."
+                value={bugContent}
+                onChange={e => setBugContent(e.target.value)}
+                style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px', minHeight: '60px', resize: 'vertical' }}
+                required
+              />
+              <button
+                type="submit"
+                disabled={bugLoading}
+                className="btn btn-primary"
+                style={{ alignSelf: 'flex-end', padding: '6px 12px', fontSize: '11.5px' }}
+              >
+                {bugLoading ? '전송 중...' : '제보하기'}
+              </button>
+            </form>
+          )}
+        </div>
       </div>
     </div>
   );

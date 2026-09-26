@@ -1,0 +1,8 @@
+node_modules
+client/node_modules
+server/node_modules
+.git
+.gemini.zip
+DFMC_Moyoung.zip
+scratch
+*.log

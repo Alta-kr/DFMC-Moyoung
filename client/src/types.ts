@@ -1,4 +1,4 @@
-export type UserRole = 'server_admin' | 'head_admin' | 'media_admin' | 'member';
+export type UserRole = 'server_admin' | 'head_admin' | 'media_admin' | 'member' | 'guest';
 
 export interface User {
   id: number;
@@ -7,6 +7,8 @@ export interface User {
   cell_name: string;
   role: UserRole;
   cell_verified: number;
+  is_guest?: boolean;
+  acquaintance_name?: string;
   created_at?: string;
   is_leader?: boolean;
   leader_clubs?: string[];
@@ -19,6 +21,7 @@ export interface Club {
   description: string;
   manager_names: string;
   member_count?: number;
+  view_count?: number;
   created_at?: string;
 }
 
@@ -28,6 +31,7 @@ export interface Notice {
   content: string;
   author_name: string;
   is_pinned: number;
+  is_active?: number;
   created_at: string;
 }
 
@@ -39,6 +43,20 @@ export interface PollHighlight {
   end_date: string;
   voters_count: number;
   total_members?: number;
+}
+
+export interface ScheduleHighlight {
+  id: number;
+  club_id: number;
+  club_name: string;
+  club_icon?: string;
+  title: string;
+  event_date: string;
+  location?: string;
+  fee_info?: string;
+  attendees_count: number;
+  total_members?: number;
+  is_attending?: boolean;
 }
 
 export interface MemberItem {
@@ -71,6 +89,20 @@ export interface CellItem {
 export interface WelcomeSettings {
   welcome_tagline: string;
   welcome_message: string;
+  group_name?: string;
+  is_targeted?: boolean;
+}
+
+export interface TargetedWelcomeItem {
+  id: number;
+  group_name: string;
+  welcome_tagline: string;
+  welcome_message: string;
+  user_ids: number[];
+  target_users?: { id: number; name: string; cell_name: string }[];
+  is_active: number;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface ServerMetrics {
@@ -86,6 +118,7 @@ export interface ServerMetrics {
     percentage: string;
   };
   total_members: number;
+  total_guests?: number;
   security: {
     is_locked: boolean;
     fail_count: number;
@@ -107,17 +140,21 @@ export interface ClubPollItem {
   options: string[];
   end_date: string;
   is_closed: number;
+  is_pinned?: number;
   creator_name: string;
   created_at: string;
   total_votes: number;
   option_counts: Record<string, number>;
   my_vote: string | null;
   is_expired: boolean;
+  comments?: ClubCommentItem[];
 }
 
 export interface ClubCommentItem {
   id: number;
-  post_id: number;
+  post_id?: number;
+  schedule_id?: number;
+  poll_id?: number;
   parent_comment_id?: number | null;
   user_id: number;
   user_name: string;
@@ -148,6 +185,7 @@ export interface ClubPostItem {
   user_cell: string;
   content: string;
   image_url?: string;
+  is_pinned?: number;
   created_at: string;
   comments?: ClubCommentItem[];
   reactions?: Record<string, number>;
@@ -165,6 +203,10 @@ export interface ClubScheduleItem {
   creator_name: string;
   created_at: string;
   is_attending: boolean;
+  is_pinned?: number;
+  comments?: ClubCommentItem[];
+  reactions?: Record<string, number>;
+  my_reactions?: string[];
 }
 
 export interface ClubPhotoItem {
@@ -187,4 +229,32 @@ export interface ClubDetailData {
   handoverVotes?: ManagerHandoverVoteItem[];
   churchMembers?: MemberItem[];
 }
+
+export interface PeriodStatItem {
+  period: string; // e.g. "2026-09-25", "2026-W39", "2026-09"
+  label: string;  // e.g. "9월 25일 (금)", "9월 4주차", "2026년 9월"
+  views: number;
+}
+
+export interface ClubAnalyticsData {
+  club_id: number;
+  club_name: string;
+  club_icon: string;
+  total_views: number;
+  today_views: number;
+  this_week_views: number;
+  this_month_views: number;
+  daily: PeriodStatItem[];
+  weekly: PeriodStatItem[];
+  monthly: PeriodStatItem[];
+}
+
+export interface MultiClubAnalyticsSummary {
+  all_total_views: number;
+  all_today_views: number;
+  all_this_week_views: number;
+  all_this_month_views: number;
+  clubs: ClubAnalyticsData[];
+}
+
 

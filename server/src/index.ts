@@ -54,11 +54,18 @@ const targetDist = fs.existsSync(clientDistDir) ? clientDistDir : fs.existsSync(
 
 
 if (targetDist) {
-  app.use(express.static(targetDist));
+  app.use(express.static(targetDist, {
+    setHeaders: (res, filePath) => {
+      if (filePath.endsWith('index.html')) {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      }
+    }
+  }));
   app.get('*', (req, res, next) => {
     if (req.path.startsWith('/api') || req.path.startsWith('/uploads')) {
       return next();
     }
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.sendFile(path.join(targetDist, 'index.html'));
   });
 }

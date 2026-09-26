@@ -1,0 +1,85 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "feed",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "priority",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "sortAt",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "fields": [
+        {
+          "order": "ASCENDING",
+          "fieldPath": "kind"
+        },
+        {
+          "order": "DESCENDING",
+          "fieldPath": "updatedAt"
+        },
+        {
+          "order": "ASCENDING",
+          "fieldPath": "__name__"
+        }
+      ],
+      "queryScope": "COLLECTION",
+      "collectionGroup": "activity"
+    },
+    {
+      "collectionGroup": "feed",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        {
+          "fieldPath": "projectionVersion",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "closesAtMs",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "feed",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "order": "ASCENDING",
+          "fieldPath": "type"
+        },
+        {
+          "order": "ASCENDING",
+          "fieldPath": "status"
+        },
+        {
+          "order": "ASCENDING",
+          "fieldPath": "startsAt"
+        },
+        {
+          "order": "ASCENDING",
+          "fieldPath": "__name__"
+        }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

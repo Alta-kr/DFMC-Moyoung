@@ -104,6 +104,17 @@ export function initDb() {
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
+    CREATE TABLE IF NOT EXISTS targeted_welcome_messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      group_name TEXT NOT NULL,
+      welcome_tagline TEXT DEFAULT '',
+      welcome_message TEXT DEFAULT '',
+      user_ids TEXT NOT NULL DEFAULT '[]', -- JSON array of user IDs: '[1, 2, 5]'
+      is_active INTEGER DEFAULT 1,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
     -- Phase 2 Tables
     CREATE TABLE IF NOT EXISTS club_polls (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -113,6 +124,7 @@ export function initDb() {
       options TEXT NOT NULL, -- JSON array of strings: '["참석", "불참"]'
       end_date TEXT NOT NULL,
       is_closed INTEGER DEFAULT 0,
+      is_pinned INTEGER DEFAULT 0,
       creator_id INTEGER,
       creator_name TEXT NOT NULL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -136,6 +148,7 @@ export function initDb() {
       user_cell TEXT NOT NULL,
       content TEXT NOT NULL,
       image_url TEXT,
+      is_pinned INTEGER DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -147,6 +160,7 @@ export function initDb() {
       location TEXT NOT NULL,
       fee_info TEXT DEFAULT '무료',
       attendees TEXT DEFAULT '[]', -- JSON array of attendee objects
+      is_pinned INTEGER DEFAULT 0,
       creator_name TEXT NOT NULL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
@@ -196,6 +210,19 @@ export function initDb() {
     );
   `);
 
+  // Add schedule_id and poll_id to club_post_comments if not exists
+  try {
+    db.prepare('ALTER TABLE club_post_comments ADD COLUMN schedule_id INTEGER DEFAULT NULL').run();
+  } catch {}
+  try {
+    db.prepare('ALTER TABLE club_post_comments ADD COLUMN poll_id INTEGER DEFAULT NULL').run();
+  } catch {}
+
+  // Add is_pinned columns for pinning notices/posts, polls, and schedules to feed top
+  try { db.prepare('ALTER TABLE club_posts ADD COLUMN is_pinned INTEGER DEFAULT 0').run(); } catch {}
+  try { db.prepare('ALTER TABLE club_polls ADD COLUMN is_pinned INTEGER DEFAULT 0').run(); } catch {}
+  try { db.prepare('ALTER TABLE club_schedules ADD COLUMN is_pinned INTEGER DEFAULT 0').run(); } catch {}
+
   // Initialize server_security row
   const sec = db.prepare('SELECT * FROM server_security WHERE id = 1').get();
   if (!sec) {
@@ -214,9 +241,9 @@ export function initDb() {
     `).run();
   }
 
-  // Seed default cells (Only actual cells)
-  const defaultCells = ['1청년부 1셀', '1청년부 2셀', '1청년부 3셀', '2청년부 1셀', '2청년부 2셀', '장년 1셀', '장년 2셀', '새가족부'];
-  db.prepare("DELETE FROM cells WHERE name = '둔산제일교회'").run(); // Ensure no bypass loophole
+  // Seed default cells (Always include '둔산제일교회' as permanent fixed cell)
+  const defaultCells = ['둔산제일교회', '1청년부 1셀', '1청년부 2셀', '1청년부 3셀', '2청년부 1셀', '2청년부 2셀', '장년 1셀', '장년 2셀', '새가족부'];
+  db.prepare("INSERT OR IGNORE INTO cells (name) VALUES ('둔산제일교회')").run();
 
   const cellCount = db.prepare('SELECT COUNT(*) as count FROM cells').get() as { count: number };
   if (cellCount.count === 0) {
@@ -592,6 +619,42 @@ export function initDb() {
       insertReaction.run('post', posts[0].id, 6, 'amen');
       insertReaction.run('post', posts[0].id, 7, 'like');
     }
+  }
+
+  // --- Seed Targeted Welcome Messages (말씀양육 수료자, 새가족 등록, 말씀양육 결단자 등) ---
+  const targetedCount = db.prepare('SELECT COUNT(*) as count FROM targeted_welcome_messages').get() as { count: number };
+  if (targetedCount.count === 0) {
+    const insertTargeted = db.prepare(`
+      INSERT INTO targeted_welcome_messages (group_name, welcome_tagline, welcome_message, user_ids, is_active)
+      VALUES (?, ?, ?, ?, ?)
+    `);
+
+    // 1. 말씀양육 수료자 (예: 강동원(id 5), 김민준(id 6))
+    insertTargeted.run(
+      '말씀양육 수료자',
+      '🎓 말씀양육 수료를 진심으로 축하드립니다!',
+      '주님의 말씀 위에 굳건히 서신 참된 제자로 승리하세요.',
+      JSON.stringify([5, 6]),
+      1
+    );
+
+    // 2. 새가족 등록 성도 (예: 홍길동(id 3))
+    insertTargeted.run(
+      '새가족 등록 성도',
+      '🌿 둔산제일교회 가족이 되신 것을 환영합니다!',
+      '모영에서 따뜻한 교제와 기쁨의 동역이 가득하길 소망합니다.',
+      JSON.stringify([3]),
+      1
+    );
+
+    // 3. 말씀양육 결단자 (예: 박민수(id 7))
+    insertTargeted.run(
+      '말씀양육 결단자',
+      '📖 말씀양육 훈련 결단을 축복합니다!',
+      '말씀으로 자라나는 은혜와 성장의 여정을 온 성도가 응원합니다.',
+      JSON.stringify([7]),
+      1
+    );
   }
 }
 

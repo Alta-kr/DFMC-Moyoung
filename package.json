@@ -9,10 +9,16 @@
     "build": "npm run build:server && npm run build:client",
     "start": "node server/dist/index.js"
   },
-  "keywords": ["church", "fellowship", "community", "mobile-web"],
+  "keywords": [
+    "church",
+    "fellowship",
+    "community",
+    "mobile-web"
+  ],
   "author": "DFMC",
   "license": "ISC",
   "devDependencies": {
-    "concurrently": "^9.1.2"
+    "concurrently": "^9.1.2",
+    "firebase-tools": "^15.31.0"
   }
 }

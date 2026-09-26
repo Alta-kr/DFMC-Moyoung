@@ -32,3 +32,11 @@ server/data/*.db-wal
 .idea/
 .DS_Store
 Thumbs.db
+
+# Firebase & Local Scratch
+.firebase/
+scratch/
+
+# Server uploads & SQLite database
+server/database.sqlite
+server/uploads/

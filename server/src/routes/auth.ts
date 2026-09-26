@@ -7,6 +7,22 @@ import { generateSecurityCode, send2FACodeEmail, sendIntrusionAlertEmail } from 
 
 export const authRouter = Router();
 
+function getLeaderClubs(name: string): string[] {
+  try {
+    const clubs = db.prepare('SELECT name, manager_names FROM clubs').all() as any[];
+    const list: string[] = [];
+    clubs.forEach(c => {
+      const managers = (c.manager_names || '').split(',').map((s: string) => s.trim());
+      if (managers.includes(name.trim())) {
+        list.push(c.name);
+      }
+    });
+    return list;
+  } catch {
+    return [];
+  }
+}
+
 // 1. Register (No password needed: ID, Name, Cell or Acquaintance Name)
 authRouter.post('/register', (req: Request, res: Response) => {
   const { username, name, cell_name, is_acquaintance } = req.body;
@@ -120,6 +136,7 @@ authRouter.post('/login', async (req: Request, res: Response) => {
   }
 
   // Regular Member & Head Admin Flow (Passwordless instant login)
+  const leaderClubs = getLeaderClubs(user.name);
   const payload = {
     id: user.id,
     username: user.username,
@@ -127,6 +144,8 @@ authRouter.post('/login', async (req: Request, res: Response) => {
     role: user.role,
     cell_name: user.cell_name,
     cell_verified: user.cell_verified,
+    is_leader: leaderClubs.length > 0,
+    leader_clubs: leaderClubs,
   };
 
   const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
@@ -226,7 +245,14 @@ authRouter.get('/me', authenticateToken, (req: AuthRequest, res: Response) => {
   if (!user) {
     return res.status(404).json({ error: '사용자를 찾을 수 없습니다.' });
   }
-  res.json({ user });
+  const leaderClubs = getLeaderClubs(user.name);
+  res.json({
+    user: {
+      ...user,
+      is_leader: leaderClubs.length > 0,
+      leader_clubs: leaderClubs,
+    }
+  });
 });
 
 // 5. Quick Switch (Dev Helper)
@@ -251,6 +277,7 @@ authRouter.post('/quick-switch', (req: Request, res: Response) => {
     return res.status(404).json({ error: '대상 계정을 찾을 수 없습니다.' });
   }
 
+  const leaderClubs = getLeaderClubs(user.name);
   const payload = {
     id: user.id,
     username: user.username,
@@ -258,6 +285,8 @@ authRouter.post('/quick-switch', (req: Request, res: Response) => {
     role: user.role,
     cell_name: user.cell_name,
     cell_verified: user.cell_verified,
+    is_leader: leaderClubs.length > 0,
+    leader_clubs: leaderClubs,
   };
 
   const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });

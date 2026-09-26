@@ -1,0 +1,75 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function member(clubId) {
+      return signedIn()
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role != 'guest'
+        && get(/databases/$(database)/documents/clubs/$(clubId)/members/$(request.auth.uid)).data.status == 'active'
+        && get(/databases/$(database)/documents/clubs/$(clubId)/members/$(request.auth.uid)).data.role in ['member', 'server_admin', 'head_admin', 'media_admin'];
+    }
+    match /users/{uid} {
+      allow get: if signedIn() && request.auth.uid == uid;
+      allow create: if signedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasAll(['uid', 'name', 'role', 'createdAt'])
+        && request.resource.data.keys().hasOnly(['uid', 'name', 'role', 'createdAt'])
+        && request.resource.data.uid == uid
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 80
+        && request.resource.data.role == 'member'
+        && request.resource.data.createdAt == request.time;
+      allow update, delete, list: if false;
+      // Public club labels/next schedule only; no private feed bodies or member lists.
+      match /summaries/home {
+        allow get: if signedIn() && request.auth.uid == uid;
+        allow write, list: if false;
+      }
+    }
+    match /clubs/{clubId}/members/{uid} {
+      allow get: if signedIn() && request.auth.uid == uid;
+      allow write, list: if false;
+    }
+    match /clubs/{clubId}/feed/{itemId} {
+      allow get: if member(clubId);
+      allow list: if member(clubId) && request.query.limit != null && request.query.limit <= 10;
+      allow write: if false;
+
+      match /activity/{activityId} {
+        function target() { return get(/databases/$(database)/documents/clubs/$(clubId)/feed/$(itemId)).data; }
+        function hasTarget() { return exists(/databases/$(database)/documents/clubs/$(clubId)/feed/$(itemId)); }
+        function common() {
+          return member(clubId) && hasTarget()
+            && request.resource.data.keys().hasAll(['uid', 'kind', 'value', 'updatedAt'])
+            && request.resource.data.keys().hasOnly(['uid', 'kind', 'value', 'updatedAt'])
+            && request.resource.data.uid == request.auth.uid
+            && request.resource.data.updatedAt == request.time;
+        }
+        function stateWrite() {
+          let data = request.resource.data;
+          return (data.kind == 'heart' && activityId == 'heart_' + request.auth.uid && data.value is bool)
+            || (data.kind == 'attendance' && activityId == 'attendance_' + request.auth.uid
+              && data.value is bool && target().type == 'schedule' && target().status == 'active'
+              && request.time < timestamp.value(target().closesAtMs))
+            || (data.kind == 'vote' && activityId == 'vote_' + request.auth.uid
+              && data.value is string && target().type == 'poll' && target().status == 'active'
+              && request.time < timestamp.value(target().closesAtMs) && data.value in target().optionIds);
+        }
+        allow get: if member(clubId) && hasTarget()
+          && (activityId.matches('comment_[a-zA-Z0-9-]+')
+            || activityId in ['attendance_' + request.auth.uid, 'vote_' + request.auth.uid, 'heart_' + request.auth.uid]);
+        allow list: if member(clubId) && hasTarget() && resource.data.kind == 'comment'
+          && request.query.limit != null && request.query.limit <= 10;
+        allow create: if common() && (stateWrite()
+          || (request.resource.data.kind == 'comment' && activityId.matches('comment_[a-zA-Z0-9-]+')
+            && request.resource.data.value is string && request.resource.data.value.size() > 0
+            && request.resource.data.value.size() <= 2000));
+        allow update: if common() && stateWrite() && resource.data.uid == request.auth.uid
+          && resource.data.kind == request.resource.data.kind;
+        allow delete: if member(clubId) && hasTarget() && resource.data.kind == 'comment'
+          && resource.data.uid == request.auth.uid;
+      }
+
+    }
+  }
+}

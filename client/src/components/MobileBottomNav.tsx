@@ -1,10 +1,10 @@
 import React from 'react';
-import { Home, Users, Vote, Shield } from 'lucide-react';
+import { Home, Users, Calendar, Shield, LogIn } from 'lucide-react';
 import { User } from '../types';
 
 interface MobileBottomNavProps {
   currentPage: string;
-  user: User;
+  user: User | null;
   onNavigate: (page: string) => void;
   onOpenClubs?: () => void;
 }
@@ -15,8 +15,8 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   onNavigate,
   onOpenClubs,
 }) => {
-  const isAdmin = user.role === 'head_admin' || user.role === 'media_admin';
-  const isServerAdmin = user.role === 'server_admin';
+  const isAdmin = user && (user.role === 'head_admin' || user.role === 'media_admin');
+  const isServerAdmin = user && user.role === 'server_admin';
 
   return (
     <nav className="mobile-bottom-nav">
@@ -50,24 +50,44 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
         <span>모영</span>
       </button>
 
-      {/* 3. Votes (Quick poll access) */}
+      {/* 3. Schedules (Quick schedule access) */}
       <button
         type="button"
         className="bottom-nav-item"
         onClick={() => {
           onNavigate('lobby');
           setTimeout(() => {
-            const el = document.getElementById('active-polls-section');
+            const el = document.getElementById('active-schedules-section');
             if (el) el.scrollIntoView({ behavior: 'smooth' });
           }, 100);
         }}
       >
-        <Vote size={19} />
-        <span>투표</span>
+        <Calendar size={19} />
+        <span>일정</span>
       </button>
 
-      {/* 4. Admin / Management or My Info */}
-      {isAdmin || isServerAdmin ? (
+      {/* 4. Login, Guest, Admin, or My Info */}
+      {!user ? (
+        <button
+          type="button"
+          className={`bottom-nav-item ${currentPage === 'login' ? 'active' : ''}`}
+          onClick={() => onNavigate('login')}
+        >
+          <LogIn size={19} />
+          <span>로그인</span>
+        </button>
+      ) : user.role === 'guest' ? (
+        <button
+          type="button"
+          className="bottom-nav-item"
+          onClick={() => {
+            alert('게스트 모드 입니다.');
+          }}
+        >
+          <Shield size={19} />
+          <span>게스트</span>
+        </button>
+      ) : isAdmin || isServerAdmin ? (
         <button
           type="button"
           className={`bottom-nav-item ${currentPage === 'head-admin' || currentPage === 'server-admin' ? 'active' : ''}`}

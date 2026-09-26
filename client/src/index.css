@@ -68,6 +68,11 @@ body {
   color: #f8fafc;
 }
 
+/* Instagram Threads Feed View for Clubs: Edge-to-edge seamless white, fills phone screen */
+.app-container.threads-full-view {
+  background: #ffffff;
+}
+
 /* Header */
 .app-header {
   position: sticky;
@@ -274,8 +279,8 @@ body {
   animation: fadeIn 0.2s ease-out;
 }
 
-.modal-content {
-  background: white;
+.modal-content, .modal-card {
+  background: #ffffff;
   width: 100%;
   max-width: 420px;
   border-radius: var(--radius-xl);
@@ -360,5 +365,14 @@ body {
 
 .content-with-bottom-nav {
   padding-bottom: 85px !important;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.animate-spin {
+  animation: spin 0.8s linear infinite;
 }
 

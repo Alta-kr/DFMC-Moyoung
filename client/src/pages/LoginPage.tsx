@@ -4,9 +4,10 @@ import { ShieldCheck, UserPlus, LogIn, Lock, AlertTriangle, Clock, KeyRound, Che
 
 interface LoginPageProps {
   onLoginSuccess: (user: User, token: string) => void;
+  onNavigateHome?: () => void;
 }
 
-export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
+export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onNavigateHome }) => {
   const [isRegister, setIsRegister] = useState(false);
   
   // Login fields (ID and Real Name only)
@@ -34,6 +35,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+
+  // Guest Mode states
+  const [showGuestModal, setShowGuestModal] = useState(false);
+  const [guestName, setGuestName] = useState('');
+  const [guestAcquaintance, setGuestAcquaintance] = useState('');
+  const [guestLoading, setGuestLoading] = useState(false);
+  const [guestError, setGuestError] = useState('');
 
   // Fetch cell list for dropdowns
   useEffect(() => {
@@ -81,13 +89,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
         throw new Error(data.error || '로그인에 실패했습니다.');
       }
 
-      if (data.requires2FA) {
+      if (data.requires2FA || data.requires2fa) {
         setShow2FAModal(true);
-        setDevCodeHint(data.devCodeHint || '');
+        setDevCodeHint(data.devCodeHint || '기본 코드: 8470');
         setTwoFACode(['', '', '', '', '']);
         setTwoFAError('');
         setTimeout(() => inputRefs.current[0]?.focus(), 100);
-      } else {
+      } else if (data.user) {
         localStorage.setItem('dfmc_token', data.token);
         onLoginSuccess(data.user, data.token);
       }
@@ -95,6 +103,40 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
       setErrorMessage(err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Handle guest login
+  const handleGuestSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!guestName.trim()) {
+      setGuestError('성함을 입력해주세요.');
+      return;
+    }
+    if (!guestAcquaintance.trim()) {
+      setGuestError('교회 지인(인도자) 이름을 입력해주세요.');
+      return;
+    }
+    setGuestLoading(true);
+    setGuestError('');
+
+    try {
+      const res = await fetch('/api/auth/guest-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: guestName.trim(),
+          acquaintance_name: guestAcquaintance.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || '게스트 접속에 실패했습니다.');
+      localStorage.setItem('dfmc_token', data.token);
+      onLoginSuccess(data.user, data.token);
+    } catch (err: any) {
+      setGuestError(err.message);
+    } finally {
+      setGuestLoading(false);
     }
   };
 
@@ -134,11 +176,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     }
   };
 
-  // Quick fill helper for convenience
-  const handleFillQuickLogin = (uname: string, nm: string) => {
-    setLoginUsername(uname);
-    setLoginName(nm);
-  };
 
   // 2FA code box input change & auto advance
   const handle2FAInput = (index: number, val: string) => {
@@ -208,6 +245,36 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
 
   return (
     <div style={{ padding: '24px 16px', display: 'flex', flexDirection: 'column', minHeight: '100vh', justifyContent: 'center' }}>
+      
+      {/* Full-screen Loading Overlay */}
+      {(loading || twoFALoading) && (
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(255, 255, 255, 0.8)',
+          backdropFilter: 'blur(3px)',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999
+        }}>
+          <div style={{
+            width: '42px', height: '42px',
+            border: '4px solid #e2e8f0',
+            borderTop: '4px solid var(--color-primary)',
+            borderRadius: '50%',
+            animation: 'spin 1s linear infinite'
+          }} />
+          <style>{`
+            @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+          `}</style>
+          <div style={{ marginTop: '16px', fontWeight: '800', color: 'var(--color-primary)', fontSize: '15px' }}>
+            {twoFALoading ? '인증 확인 중...' : '잠시만 기다려주세요...'}
+          </div>
+        </div>
+      )}
+
       {/* Brand Header */}
       <div style={{ textAlign: 'center', marginBottom: '28px' }}>
         <div style={{
@@ -230,7 +297,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
           모영 <span style={{ fontSize: '18px', color: 'var(--color-primary)', fontWeight: '700' }}>Moyoung</span>
         </h1>
         <p style={{ fontSize: '13.5px', color: 'var(--color-text-muted)', marginTop: '4px' }}>
-          둔산제일교회 청년·성도 교제 모영
+          둔산제일감리교회
         </p>
       </div>
 
@@ -310,22 +377,16 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
         {!isRegister ? (
           /* Login Form (ID and Real Name only) */
           <form onSubmit={handleLogin}>
-            <div style={{
-              padding: '10px 12px',
-              background: '#eff6ff',
-              borderRadius: 'var(--radius-md)',
-              fontSize: '12px',
-              color: '#1d4ed8',
-              marginBottom: '16px',
-              border: '1px solid #dbeafe'
-            }}>
-              ✨ <strong>간편 로그인</strong>: <strong>아이디</strong>와 <strong>이름(실명)</strong>만 입력하시면 즉시 로그인됩니다.
-            </div>
 
             <div className="form-group">
               <label className="form-label">아이디</label>
               <input
                 type="text"
+                inputMode="url"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                autoComplete="username"
                 className="form-input"
                 placeholder="아이디를 입력하세요"
                 value={loginUsername}
@@ -338,86 +399,17 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
               <label className="form-label">이름 (실명)</label>
               <input
                 type="text"
+                inputMode="text"
+                spellCheck={false}
+                autoComplete="name"
                 className="form-input"
-                placeholder="예: 홍길동, 김목사"
+                placeholder="예: 홍길동"
                 value={loginName}
                 onChange={(e) => setLoginName(e.target.value)}
                 required
               />
             </div>
 
-            {/* Quick Fill Pills for Easy Testing */}
-            <div style={{ marginBottom: '14px' }}>
-              <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', display: 'block', marginBottom: '6px' }}>
-                빠른 테스트 계정 (클릭 시 자동 입력):
-              </span>
-              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                <button
-                  type="button"
-                  onClick={() => handleFillQuickLogin('pastor', '김목사')}
-                  className="btn btn-sm btn-secondary"
-                  style={{ fontSize: '11px', padding: '3px 8px', fontWeight: '700', color: '#b45309' }}
-                >
-                  김목사(전체 관리자)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleFillQuickLogin('user15', '신민재')}
-                  className="btn btn-sm btn-secondary"
-                  style={{ fontSize: '11px', padding: '3px 8px', fontWeight: '700', color: '#6d28d9' }}
-                >
-                  신민재(미디어관리자/user15)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleFillQuickLogin('dfmc8470', '서버관리자')}
-                  className="btn btn-sm btn-secondary"
-                  style={{ fontSize: '11px', padding: '3px 8px', fontWeight: '700', color: '#4338ca' }}
-                >
-                  ⚙️ 서버관리자
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleFillQuickLogin('user1', '이주환')}
-                  className="btn btn-sm btn-secondary"
-                  style={{ fontSize: '11px', padding: '3px 8px' }}
-                >
-                  ⚽ 이주환(풋살총무/user1)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleFillQuickLogin('user4', '박민수')}
-                  className="btn btn-sm btn-secondary"
-                  style={{ fontSize: '11px', padding: '3px 8px' }}
-                >
-                  🏸 박민수(배드민턴총무/user4)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleFillQuickLogin('user7', '최영호')}
-                  className="btn btn-sm btn-secondary"
-                  style={{ fontSize: '11px', padding: '3px 8px' }}
-                >
-                  🎳 최영호(볼링총무/user7)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleFillQuickLogin('user10', '정다은')}
-                  className="btn btn-sm btn-secondary"
-                  style={{ fontSize: '11px', padding: '3px 8px' }}
-                >
-                  📚 정다은(독서총무/user10)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleFillQuickLogin('user50', '도하준')}
-                  className="btn btn-sm btn-secondary"
-                  style={{ fontSize: '11px', padding: '3px 8px' }}
-                >
-                  👤 도하준(일반회원/user50)
-                </button>
-              </div>
-            </div>
 
             <button
               type="submit"
@@ -428,9 +420,45 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
               {loading ? '확인 중...' : '로그인'}
             </button>
 
-            <div style={{ marginTop: '16px', padding: '10px 12px', background: '#f8fafc', borderRadius: 'var(--radius-sm)', fontSize: '11.5px', color: 'var(--color-text-muted)', lineHeight: 1.4 }}>
-              💡 <strong>서버 관리자 안내</strong>: <code>dfmc8470</code> 로그인 시 보안을 위해 지정 이메일(baehh4159@gmail.com)로 5자리 2단계 인증코드가 발송됩니다.
+            {/* Guest Start Button right below login */}
+            <div style={{ marginTop: '14px', textAlign: 'center' }}>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                margin: '12px 0',
+                color: 'var(--color-text-light)',
+                fontSize: '11.5px'
+              }}>
+                <div style={{ flex: 1, height: '1px', background: 'var(--color-border)' }} />
+                <span style={{ padding: '0 8px' }}>또는</span>
+                <div style={{ flex: 1, height: '1px', background: 'var(--color-border)' }} />
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setGuestError('');
+                  setShowGuestModal(true);
+                }}
+                className="btn btn-block"
+                style={{
+                  padding: '11px',
+                  background: '#f8fafc',
+                  color: '#334155',
+                  border: '1.5px solid #cbd5e1',
+                  borderRadius: 'var(--radius-md)',
+                  fontWeight: '700',
+                  fontSize: '14px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px'
+                }}
+              >
+                <span>🙋‍♂️ 게스트로 참여하기</span>
+              </button>
             </div>
+
           </form>
         ) : (
           /* Register Form (ID, Name, Cell only - No password!) */
@@ -439,6 +467,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
               <label className="form-label">아이디</label>
               <input
                 type="text"
+                inputMode="url"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                autoComplete="username"
                 className="form-input"
                 placeholder="영문, 숫자 아이디"
                 value={regUsername}
@@ -451,6 +484,9 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
               <label className="form-label">이름 (실명)</label>
               <input
                 type="text"
+                inputMode="text"
+                spellCheck={false}
+                autoComplete="name"
                 className="form-input"
                 placeholder="예: 홍길동"
                 value={regName}
@@ -529,7 +565,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
               <input
                 type="text"
                 className="form-input"
-                placeholder={isAcquaintance ? "등록된 지인 이름 입력 (예: 홍길동)" : "소속 셀 이름 입력 (예: 1청년부 1셀)"}
+                placeholder={isAcquaintance ? "등록된 지인 이름 입력 (예: 홍길동)" : "소속 셀 이름 입력 (예: 홍길동셀)"}
                 value={regCellName}
                 onChange={(e) => setRegCellName(e.target.value)}
                 required
@@ -581,21 +617,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
               </p>
             </div>
 
-            {/* Local dev hint pill */}
-            {devCodeHint && (
-              <div style={{
-                padding: '8px 12px',
-                background: '#eff6ff',
-                border: '1px dashed #3b82f6',
-                borderRadius: 'var(--radius-sm)',
-                fontSize: '12px',
-                textAlign: 'center',
-                marginBottom: '16px',
-                color: '#1d4ed8'
-              }}>
-                [로컬 개발 힌트] 발송된 코드: <strong style={{ letterSpacing: '2px', fontFamily: 'monospace' }}>{devCodeHint}</strong>
-              </div>
-            )}
 
             {isLocked ? (
               <div style={{
@@ -697,6 +718,125 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                 {twoFALoading ? '검증 중...' : '인증 확인'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Guest Login Modal */}
+      {showGuestModal && (
+        <div className="modal-overlay" style={{ zIndex: 1000 }} onClick={() => setShowGuestModal(false)}>
+          <div
+            className="modal-card animate-scale-up"
+            style={{
+              maxWidth: '340px',
+              width: '90%',
+              padding: '24px 20px',
+              background: '#0f172a',
+              color: '#ffffff',
+              borderRadius: '16px',
+              boxShadow: '0 20px 40px rgba(0, 0, 0, 0.6)',
+              border: '1px solid #1e293b'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ fontSize: '18px', fontWeight: '700', color: '#ffffff', marginBottom: '20px', textAlign: 'center' }}>
+              게스트 로그인
+            </h3>
+
+            {guestError && (
+              <div style={{
+                padding: '8px 12px',
+                background: 'rgba(239, 68, 68, 0.15)',
+                color: '#f87171',
+                borderRadius: '8px',
+                fontSize: '12px',
+                marginBottom: '14px',
+                border: '1px solid rgba(239, 68, 68, 0.3)'
+              }}>
+                {guestError}
+              </div>
+            )}
+
+            <form onSubmit={handleGuestSubmit}>
+              <div className="form-group" style={{ marginBottom: '14px' }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#ffffff', marginBottom: '6px' }}>
+                  본인 이름
+                </label>
+                <input
+                  type="text"
+                  className="form-input"
+                  style={{
+                    background: '#ffffff',
+                    border: '1px solid #cbd5e1',
+                    color: '#0f172a',
+                    fontWeight: '500',
+                    fontSize: '14px',
+                    padding: '10px 12px',
+                    borderRadius: '8px'
+                  }}
+                  placeholder="이름 입력"
+                  value={guestName}
+                  onChange={(e) => setGuestName(e.target.value)}
+                  autoFocus
+                  required
+                />
+              </div>
+
+              <div className="form-group" style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#ffffff', marginBottom: '6px' }}>
+                  지인 이름
+                </label>
+                <input
+                  type="text"
+                  className="form-input"
+                  style={{
+                    background: '#ffffff',
+                    border: '1px solid #cbd5e1',
+                    color: '#0f172a',
+                    fontWeight: '500',
+                    fontSize: '14px',
+                    padding: '10px 12px',
+                    borderRadius: '8px'
+                  }}
+                  placeholder="지인 이름 입력"
+                  value={guestAcquaintance}
+                  onChange={(e) => setGuestAcquaintance(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowGuestModal(false)}
+                  className="btn"
+                  style={{
+                    padding: '10px',
+                    fontWeight: '600',
+                    background: '#1e293b',
+                    color: '#94a3b8',
+                    border: '1px solid #334155',
+                    borderRadius: '8px',
+                    fontSize: '13.5px'
+                  }}
+                >
+                  취소
+                </button>
+                <button
+                  type="submit"
+                  disabled={guestLoading}
+                  className="btn btn-primary"
+                  style={{
+                    padding: '10px',
+                    fontWeight: '700',
+                    fontSize: '13.5px',
+                    borderRadius: '8px'
+                  }}
+                >
+                  {guestLoading ? '접속 중...' : '시작하기'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
