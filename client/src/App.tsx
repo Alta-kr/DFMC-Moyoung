@@ -1,3 +1,4 @@
+import { clearAccountCaches } from './firebase/accountCache';
 import React, { useState, useEffect, useRef } from 'react';
 import { User, UserRole } from './types';
 import { Header } from './components/Header';
@@ -175,7 +176,8 @@ export function App() {
           }
         })
         .catch(() => {
-          localStorage.removeItem('dfmc_token');
+          clearAccountCaches();
+    localStorage.removeItem('dfmc_token');
           localStorage.removeItem('dfmc_user');
           setUser(null);
           setToken(null);
@@ -193,6 +195,7 @@ export function App() {
   };
 
   const handleLogout = () => {
+    clearAccountCaches();
     localStorage.removeItem('dfmc_token');
     localStorage.removeItem('dfmc_user');
     setUser(null);
@@ -307,14 +310,14 @@ export function App() {
         ) : currentPage === 'head-admin' && user && (user.role === 'head_admin' || user.role === 'media_admin') ? (
           <HeadAdminPage user={user} onBackToLobby={handleBackToLobby} />
         ) : currentPage === 'club-detail' && selectedClubId && user && user.role !== 'guest' ? (
-          <ClubDetailPage
+          <ClubDetailPage key={(user?.username || '') + ':' + selectedClubId}
             clubId={selectedClubId}
             user={user}
             initialTab={selectedClubTab}
             onBackToLobby={handleBackToLobby}
           />
         ) : (
-          <LobbyPage
+          <LobbyPage key={user?.username || 'anonymous'}
             user={user}
             onUpdateUser={handleUpdateUser}
             onNavigateClub={handleNavigateClub}

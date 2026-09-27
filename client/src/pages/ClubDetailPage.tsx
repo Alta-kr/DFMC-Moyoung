@@ -1,3 +1,6 @@
+import { samePerson, managerIds } from '../firebase/identity';
+import { parseMoyoungDate, scheduleTimes } from '../../../functions/src/dateTime.js';
+import { accountCache, cacheForAccount } from '../firebase/accountCache';
 import React, { useState, useEffect, useRef } from 'react';
 import { User, ClubDetailData, ClubPostItem, ClubPollItem, ClubScheduleItem } from '../types';
 import { 
@@ -20,9 +23,10 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
   user,
   onBackToLobby,
 }) => {
+  const accountCache = cacheForAccount(user.username);
   const [data, setData] = useState<ClubDetailData | null>(() => {
     try {
-      const cached = localStorage.getItem(`dfmc_club_cache_${clubId}`);
+      const cached = accountCache.getItem(`dfmc_club_cache_${clubId}`);
       return cached ? JSON.parse(cached) : null;
     } catch {
       return null;
@@ -30,7 +34,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
   });
   const [loading, setLoading] = useState<boolean>(() => {
     try {
-      const cached = localStorage.getItem(`dfmc_club_cache_${clubId}`);
+      const cached = accountCache.getItem(`dfmc_club_cache_${clubId}`);
       return !cached;
     } catch {
       return true;
@@ -67,10 +71,6 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
 
   // Feed Post Creation & Explorer File Upload
   const [postContent, setPostContent] = useState('');
-  const [postImageUrl, setPostImageUrl] = useState('');
-  const [selectedPostImage, setSelectedPostImage] = useState<File | null>(null);
-  const [postImagePreview, setPostImagePreview] = useState<string>('');
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [isSubmittingPost, setIsSubmittingPost] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -78,9 +78,6 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
   const [editingPostId, setEditingPostId] = useState<number | null>(null);
   const [editingContent, setEditingContent] = useState('');
   const [editingImageUrl, setEditingImageUrl] = useState('');
-  const [selectedEditImage, setSelectedEditImage] = useState<File | null>(null);
-  const [editImagePreview, setEditImagePreview] = useState<string>('');
-  const editFileInputRef = useRef<HTMLInputElement>(null);
   const [isUpdatingPost, setIsUpdatingPost] = useState(false);
 
   // UI state
@@ -116,7 +113,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
   const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false);
   const loadMoreRef = useRef<HTMLDivElement>(null);
 
-  const token = localStorage.getItem('dfmc_token');
+  const token = accountCache.getItem('dfmc_token');
 
   // Close kebab menu when clicking outside
   useEffect(() => {
@@ -136,9 +133,24 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
     setTimeout(() => setActionError(''), 4000);
   };
 
+  useEffect(() => {
+    if(!showHandoverModal) return;
+    let active=true;
+    fetch('/api/clubs/'+clubId+'/members',{headers:{Authorization:'Bearer '+token}})
+      .then(async response=>{const result=await response.json();if(!response.ok)throw new Error(result.error);return result;})
+      .then(result=>{if(active)setData(prev=>prev?{...prev,churchMembers:result.members}:prev);})
+      .catch(error=>{if(active)flashErr(error.message);});
+    return ()=>{active=false;};
+  },[showHandoverModal,clubId,token]);
+
+  useEffect(() => {
+    if (!data || isSubmittingVote !== null || attendingScheduleId !== null) return;
+    try { cacheForAccount(user.username).setItem(`dfmc_club_cache_${clubId}`, JSON.stringify(data)); } catch {}
+  }, [data, clubId, user.username, isSubmittingVote, attendingScheduleId]);
+
   const loadClubData = async () => {
     const cacheKey = `dfmc_club_cache_${clubId}`;
-    const cached = localStorage.getItem(cacheKey);
+    const cached = accountCache.getItem(cacheKey);
     if (cached && !data) {
       try {
         const d = JSON.parse(cached);
@@ -155,7 +167,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
       });
       if (!res.ok) throw new Error('모영 정보를 불러오지 못했습니다.');
       const d: ClubDetailData = await res.json();
-      localStorage.setItem(cacheKey, JSON.stringify(d));
+      accountCache.setItem(cacheKey, JSON.stringify(d));
       setData(d);
       setEditName(d.club.name);
       setEditDesc(d.club.description);
@@ -245,95 +257,38 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
   };
 
   // 3. File Explorer Select & Remove for Create Post
-  const handlePostFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!file.type.startsWith('image/')) {
-      flashErr('이미지 파일만 업로드할 수 있습니다.');
-      return;
-    }
-    if (file.size > 15 * 1024 * 1024) {
-      flashErr('파일 크기는 15MB 이하여야 합니다.');
-      return;
-    }
-    setSelectedPostImage(file);
-    const objectUrl = URL.createObjectURL(file);
-    setPostImagePreview(objectUrl);
-    setPostImageUrl('');
-  };
 
-  const handleRemovePostImage = () => {
-    setSelectedPostImage(null);
-    if (postImagePreview) {
-      URL.revokeObjectURL(postImagePreview);
-    }
-    setPostImagePreview('');
-    setPostImageUrl('');
-    if (fileInputRef.current) fileInputRef.current.value = '';
-  };
 
   // 4. File Explorer Select & Remove for Edit Post
   const handleStartEditPost = (post: ClubPostItem) => {
     setEditingPostId(post.id);
     setEditingContent(post.content || '');
     setEditingImageUrl(post.image_url || '');
-    setSelectedEditImage(null);
-    setEditImagePreview('');
-    if (editFileInputRef.current) editFileInputRef.current.value = '';
+
   };
 
-  const handleEditFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!file.type.startsWith('image/')) {
-      flashErr('이미지 파일만 업로드할 수 있습니다.');
-      return;
-    }
-    if (file.size > 15 * 1024 * 1024) {
-      flashErr('파일 크기는 15MB 이하여야 합니다.');
-      return;
-    }
-    setSelectedEditImage(file);
-    const objectUrl = URL.createObjectURL(file);
-    setEditImagePreview(objectUrl);
-  };
 
   const handleRemoveEditImage = () => {
-    setSelectedEditImage(null);
-    if (editImagePreview) {
-      URL.revokeObjectURL(editImagePreview);
-    }
-    setEditImagePreview('');
+
+
     setEditingImageUrl('');
-    if (editFileInputRef.current) editFileInputRef.current.value = '';
+
   };
 
   // 5. Create Post (Text is optional if image exists! "중요 공지" checkbox removed)
   const handleCreatePost = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     const hasText = Boolean(postContent.trim());
-    const hasImage = Boolean(selectedPostImage || postImageUrl.trim());
+    const hasImage = false;
     if (!hasText && !hasImage) {
-      flashErr('글 내용 또는 사진을 첨부해주세요.');
+      flashErr('글 내용을 입력해주세요.');
       return;
     }
 
     setIsSubmittingPost(true);
     try {
-      let finalImageUrl = postImageUrl.trim() || null;
+      const finalImageUrl = null;
 
-      if (selectedPostImage) {
-        const formData = new FormData();
-        formData.append('image', selectedPostImage);
-        const upRes = await fetch('/api/clubs/upload-image', {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${token}` },
-          body: formData,
-        });
-        const upData = await upRes.json();
-        if (!upRes.ok) throw new Error(upData.error || '이미지 업로드에 실패했습니다.');
-        finalImageUrl = upData.imageUrl || upData.url || null;
-      }
 
       const res = await fetch(`/api/clubs/${clubId}/posts`, {
         method: 'POST',
@@ -344,10 +299,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
       if (!res.ok) throw new Error(resData.error);
       flash(resData.message);
       setPostContent('');
-      setPostImageUrl('');
-      setSelectedPostImage(null);
-      setPostImagePreview('');
-      if (fileInputRef.current) fileInputRef.current.value = '';
+
       await loadClubData();
       setTimeout(() => scrollToBottom('smooth'), 100);
     } catch (err: any) {
@@ -360,9 +312,9 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
   // 6. Update Post (Text is optional if image exists!)
   const handleUpdatePost = async (postId: number) => {
     const hasText = Boolean(editingContent.trim());
-    const hasImage = Boolean(selectedEditImage || editingImageUrl.trim());
+    const hasImage = Boolean(editingImageUrl.trim());
     if (!hasText && !hasImage) {
-      flashErr('글 내용 또는 사진이 있어야 합니다.');
+      flashErr('글 내용을 입력해주세요.');
       return;
     }
 
@@ -370,18 +322,6 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
     try {
       let finalImageUrl = editingImageUrl.trim() || null;
 
-      if (selectedEditImage) {
-        const formData = new FormData();
-        formData.append('image', selectedEditImage);
-        const upRes = await fetch('/api/clubs/upload-image', {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${token}` },
-          body: formData,
-        });
-        const upData = await upRes.json();
-        if (!upRes.ok) throw new Error(upData.error || '이미지 업로드에 실패했습니다.');
-        finalImageUrl = upData.imageUrl || upData.url || null;
-      }
 
       const res = await fetch(`/api/clubs/${clubId}/posts/${postId}`, {
         method: 'PUT',
@@ -397,9 +337,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
       setEditingPostId(null);
       setEditingContent('');
       setEditingImageUrl('');
-      setSelectedEditImage(null);
-      setEditImagePreview('');
-      if (editFileInputRef.current) editFileInputRef.current.value = '';
+
       await loadClubData();
     } catch (err: any) {
       flashErr(err.message);
@@ -793,16 +731,10 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
       flashErr('투표할 항목을 먼저 선택해주세요.');
       return;
     }
+    if (isSubmittingVote !== null) return;
+    const before = data?.polls.find(p=>p.id===pollId);
+    if(!before) return;
     setIsSubmittingVote(pollId);
-    try {
-      const res = await fetch(`/api/clubs/${clubId}/polls/${pollId}/vote`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ selected_option: option, selectedOption: option }),
-      });
-      const resData = await res.json();
-      if (!res.ok) throw new Error(resData.error);
-      flash(resData.message);
       // Optimistic vote update
       setData(prev => {
         if (!prev) return prev;
@@ -814,7 +746,18 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
           return { ...p, my_vote: option, option_counts: newCounts, total_votes: (p.total_votes || 0) + (p.my_vote ? 0 : 1) };
         })};
       });
+
+    try {
+      const res = await fetch(`/api/clubs/${clubId}/polls/${pollId}/vote`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ selected_option: option, selectedOption: option }),
+      });
+      const resData = await res.json();
+      if (!res.ok) throw new Error(resData.error);
+      flash(resData.message);
     } catch (err: any) {
+      setData(prev=>prev?{...prev,polls:prev.polls.map(p=>p.id===pollId?before:p)}:prev);
       flashErr(err.message);
     } finally {
       setIsSubmittingVote(null);
@@ -906,60 +849,20 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
 
   // 14. Toggle Schedule Attendance Handler
   const handleToggleAttendance = async (scheduleId: number) => {
+    if (attendingScheduleId !== null) return;
+    const before = data?.schedules.find(s => s.id === scheduleId);
+    if (!before) return;
+    const attending = !(before.attendees || []).some((a: any) => samePerson(a, user));
     setAttendingScheduleId(scheduleId);
+    const next = (before.attendees || []).filter((a: any) => !samePerson(a, user));
+    if (attending) next.push({userId:user.id, userName:user.name, cellName:user.cell_name});
+    setData(prev => prev ? {...prev, schedules:prev.schedules.map(s => s.id === scheduleId ? {...s, attendees:next, is_attending:attending} : s)} : prev);
     try {
-      const res = await fetch(`/api/clubs/${clubId}/schedules/${scheduleId}/attend`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const resData = await res.json();
-      if (!res.ok) throw new Error(resData.error);
-      flash(resData.message || '처리되었습니다.');
-      // Optimistic attendance update
-      setData(prev => {
-        if (!prev) return prev;
-        return { ...prev, schedules: prev.schedules.map(s => {
-          if (s.id !== scheduleId) return s;
-          const attendees = s.attendees || [];
-          const already = attendees.some((a: any) => 
-            (a.userId !== undefined && a.userId === user.id) ||
-            (a.user_id !== undefined && a.user_id === user.id) ||
-            (a.userName && a.userName === user.name) ||
-            (a.user_name && a.user_name === user.name)
-          );
-          if (already) {
-            return {
-              ...s,
-              attendees: attendees.filter((a: any) => 
-                a.userId !== user.id && 
-                a.user_id !== user.id &&
-                a.userName !== user.name &&
-                a.user_name !== user.name
-              ),
-              is_attending: false
-            };
-          }
-          const cleanAttendees = attendees.filter((a: any) => 
-            a.userId !== user.id && 
-            a.user_id !== user.id &&
-            a.userName !== user.name &&
-            a.user_name !== user.name
-          );
-          return {
-            ...s,
-            attendees: [
-              ...cleanAttendees,
-              { userId: user.id, user_id: user.id, userName: user.name, user_name: user.name, cellName: user.cell_name || '' }
-            ],
-            is_attending: true
-          };
-        })};
-      });
-    } catch (err: any) {
-      flashErr(err.message);
-    } finally {
-      setAttendingScheduleId(null);
-    }
+      const res = await fetch('/api/clubs/' + clubId + '/schedules/' + scheduleId + '/attend', {method:'POST', headers:{Authorization:'Bearer ' + token,'Content-Type':'application/json'}, body:JSON.stringify({attending})});
+      const result = await res.json(); if(!res.ok) throw new Error(result.error);
+      setData(prev => prev ? {...prev,schedules:prev.schedules.map(s=>s.id===scheduleId?{...s,attendees:result.attendees,is_attending:result.is_attending}:s)} : prev);
+    } catch(error:any) { setData(prev=>prev?{...prev,schedules:prev.schedules.map(s=>s.id===scheduleId?before:s)}:prev);flashErr(error.message); }
+    finally { setAttendingScheduleId(null); }
   };
 
   // Delete Schedule Handler
@@ -990,26 +893,10 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
   const managers = (club.manager_names || '').split(',').map(s => s.trim()).filter(Boolean);
   const isHost = isManager || user.role === 'head_admin' || user.role === 'server_admin';
 
-  const isPollClosed = (p: ClubPollItem) => Boolean(p.is_closed || p.is_expired || (p.end_date && new Date(p.end_date).getTime() < Date.now()));
+  const isPollClosed = (p: ClubPollItem) => Boolean(p.is_closed || p.is_expired || (p.end_date && (parseMoyoungDate(p.end_date, true) ?? 0) <= Date.now()));
 
-  const getScheduleTimestamp = (s: ClubScheduleItem) => {
-    let t = new Date(s.event_date).getTime();
-    if (isNaN(t)) {
-      const match = s.event_date.match(/(\d{4})[-./](\d{1,2})[-./](\d{1,2})/);
-      if (match) {
-        t = new Date(`${match[1]}-${match[2].padStart(2, '0')}-${match[3].padStart(2, '0')}`).getTime();
-      }
-    }
-    return t;
-  };
-
-  const isSchedulePast = (s: ClubScheduleItem) => {
-    const t = getScheduleTimestamp(s);
-    if (!isNaN(t)) {
-      return t < Date.now() - 24 * 60 * 60 * 1000;
-    }
-    return false;
-  };
+  const getScheduleTimestamp = (s: ClubScheduleItem) => scheduleTimes(s).startsAtMs ?? NaN;
+  const isSchedulePast = (s: ClubScheduleItem) => (scheduleTimes(s).endsAtMs ?? 0) <= Date.now();
 
   // 1. Pinned Notices / Posts (Always at the very top of the feed)
   const pinnedPosts: ClubPostItem[] = (posts || [])
@@ -1046,7 +933,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
       schedule,
       targetTime: getScheduleTimestamp(schedule) || (Date.now() + 7 * 24 * 60 * 60 * 1000)
     }))
-  ].sort((a, b) => a.targetTime - b.targetTime);
+  ].sort((a, b) => (a.itemType === 'active_schedule' ? 0 : 1) - (b.itemType === 'active_schedule' ? 0 : 1) || a.targetTime - b.targetTime);
 
   // 4. Regular (Unpinned) Posts (Chronological, newest first)
   const regularPosts: ClubPostItem[] = (posts || [])
@@ -1078,12 +965,22 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
   ].sort((a, b) => b.time - a.time);
 
   // 10-item Pagination / Infinite Scroll for Feed Stream
-  const visibleTimeline = feedTimeline.slice(0, visibleFeedCount);
-  const hasMoreFeed = visibleFeedCount < feedTimeline.length;
+  const visibleTimeline = data?.paginated ? feedTimeline : feedTimeline.slice(0, visibleFeedCount);
+  const hasMoreFeed = data?.paginated ? !!data.nextCursor : visibleFeedCount < feedTimeline.length;
 
-  const handleLoadMoreFeed = () => {
+  const handleLoadMoreFeed = async () => {
     if (isLoadingMore || !hasMoreFeed) return;
     setIsLoadingMore(true);
+    if (data?.paginated) {
+      try {
+        const res=await fetch('/api/clubs/'+clubId+'?cursor='+encodeURIComponent(data.nextCursor || ''),{headers:{Authorization:'Bearer '+token}});
+        if(!res.ok) throw new Error('다음 글을 불러오지 못했습니다.');
+        const page:ClubDetailData=await res.json();
+        const merge=<T extends {id:number}>(a:T[],b:T[])=>[...new Map([...a,...b].map(item=>[item.id,item])).values()];
+        setData(prev=>prev?{...prev,nextCursor:page.nextCursor,posts:merge(prev.posts,page.posts),polls:merge(prev.polls,page.polls),schedules:merge(prev.schedules,page.schedules)}:prev);
+      } catch(err:any){flashErr(err.message);} finally{setIsLoadingMore(false);}
+      return;
+    }
     setTimeout(() => {
       setVisibleFeedCount(prev => prev + 10);
       setIsLoadingMore(false);
@@ -1384,7 +1281,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
                           />
 
                           {/* Edit Mode Image Preview & Replace */}
-                          {(editImagePreview || editingImageUrl) && (
+                          {(editingImageUrl) && (
                             <div style={{
                               position: 'relative',
                               display: 'inline-block',
@@ -1395,7 +1292,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
                               background: '#0f172a'
                             }}>
                               <img
-                                src={editImagePreview || editingImageUrl}
+                                src={editingImageUrl}
                                 alt="수정 첨부 이미지"
                                 style={{ width: '100%', maxHeight: '140px', objectFit: 'cover', display: 'block' }}
                               />
@@ -1425,33 +1322,8 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
                           )}
 
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-                            <input
-                              type="file"
-                              ref={editFileInputRef}
-                              accept="image/*"
-                              onChange={handleEditFileSelect}
-                              style={{ display: 'none' }}
-                            />
-                            <button
-                              type="button"
-                              onClick={() => editFileInputRef.current?.click()}
-                              className="btn btn-sm"
-                              style={{
-                                fontSize: '11px',
-                                padding: '3px 8px',
-                                background: '#ffffff',
-                                border: '1px solid #cbd5e1',
-                                borderRadius: '6px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                                cursor: 'pointer',
-                                color: '#334155'
-                              }}
-                            >
-                              <ImageIcon size={12} />
-                              <span>{editImagePreview || editingImageUrl ? '사진 변경' : '사진'}</span>
-                            </button>
+
+
 
                             <div style={{ display: 'flex', gap: '6px' }}>
                               <button
@@ -1460,8 +1332,8 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
                                   setEditingPostId(null);
                                   setEditingContent('');
                                   setEditingImageUrl('');
-                                  setSelectedEditImage(null);
-                                  setEditImagePreview('');
+
+
                                 }}
                                 className="btn btn-sm btn-secondary"
                                 style={{ fontSize: '11.5px', padding: '4px 10px', borderRadius: '6px' }}
@@ -1474,7 +1346,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
                                 onClick={() => handleUpdatePost(item.id)}
                                 className="btn btn-sm btn-primary"
                                 style={{ fontSize: '11.5px', padding: '4px 12px', borderRadius: '6px', fontWeight: '700' }}
-                                disabled={isUpdatingPost || (!editingContent.trim() && !editImagePreview && !editingImageUrl.trim())}
+                                disabled={isUpdatingPost || (!editingContent.trim() && !editingImageUrl.trim())}
                               >
                                 {isUpdatingPost ? '저장 중...' : '수정 완료'}
                               </button>
@@ -2114,7 +1986,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
     } catch {
       attendees = [];
     }
-    const isAttending = attendees.some((a: any) => a.userId === user.id);
+    const isAttending = attendees.some((a: any) => samePerson(a, user));
     const canDelete = isHost;
 
     return (
@@ -2489,7 +2361,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%', width: '100%', background: '#ffffff' }}>
       {/* Full-screen loading overlay for posting, deleting, voting, attending */}
-      {(isSubmittingPost || isDeleting || isSubmittingVote !== null || attendingScheduleId !== null) && (
+      {(isSubmittingPost || isDeleting) && (
         <div style={{
           position: 'fixed',
           top: 0, left: 0, right: 0, bottom: 0,
@@ -2679,7 +2551,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
         </div>
 
         {/* Handover Vote button (only if manager & pending votes exist) */}
-        {isManager && data?.handoverVotes && data.handoverVotes.length > 0 && (
+        {isManager && (
           <button
             type="button"
             onClick={() => setShowHandoverModal(true)}
@@ -2693,7 +2565,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
               fontWeight: '700'
             }}
           >
-            총무 안건 ({data.handoverVotes.length})
+            총무 안건{data?.handoverVotes?.length ? ` (${data.handoverVotes.length})` : ''}
           </button>
         )}
       </div>
@@ -2764,65 +2636,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
               </div>
             </div>
 
-            {/* Hidden File Input for File Explorer */}
-            <input
-              type="file"
-              ref={fileInputRef}
-              accept="image/*"
-              onChange={handlePostFileSelect}
-              style={{ display: 'none' }}
-            />
 
-            {/* Photo Preview if Selected from File Explorer */}
-            {(postImagePreview || postImageUrl) && (
-              <div style={{
-                position: 'relative',
-                marginTop: '6px',
-                marginBottom: '6px',
-                display: 'inline-block',
-                maxWidth: '100%',
-                borderRadius: '12px',
-                overflow: 'hidden',
-                border: '1.5px solid #cbd5e1',
-                background: '#0f172a'
-              }}>
-                <img
-                  src={postImagePreview || postImageUrl}
-                  alt="첨부 이미지 미리보기"
-                  style={{
-                    maxHeight: '220px',
-                    width: 'auto',
-                    maxWidth: '100%',
-                    display: 'block',
-                    objectFit: 'contain'
-                  }}
-                />
-                <button
-                  type="button"
-                  onClick={handleRemovePostImage}
-                  style={{
-                    position: 'absolute',
-                    top: '8px',
-                    right: '8px',
-                    width: '26px',
-                    height: '26px',
-                    borderRadius: '50%',
-                    background: 'rgba(0, 0, 0, 0.7)',
-                    color: '#ffffff',
-                    border: 'none',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer',
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.4)',
-                    backdropFilter: 'blur(4px)'
-                  }}
-                  title="사진 삭제"
-                >
-                  <X size={14} />
-                </button>
-              </div>
-            )}
 
             {/* Composer Controls: Photo + Modal popup triggers for Poll & Schedule */}
             <div style={{
@@ -2836,27 +2650,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
             }}>
               <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
                 {/* Photo upload from Explorer */}
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="btn btn-sm"
-                  style={{
-                    fontSize: '11.5px',
-                    padding: '5px 11px',
-                    background: postImagePreview || postImageUrl ? '#eff6ff' : '#f8fafc',
-                    color: postImagePreview || postImageUrl ? '#2563eb' : '#475569',
-                    border: postImagePreview || postImageUrl ? '1px solid #93c5fd' : '1px solid #e2e8f0',
-                    fontWeight: '700',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '5px',
-                    borderRadius: '8px',
-                    cursor: 'pointer'
-                  }}
-                >
-                  <ImageIcon size={14} />
-                  <span>{postImagePreview || postImageUrl ? '사진 변경' : '사진'}</span>
-                </button>
+
 
                 {/* Create Poll Modal Trigger */}
                 <button
@@ -2908,7 +2702,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
               <button
                 type="button"
                 onClick={handleCreatePost}
-                disabled={isSubmittingPost || (!postContent.trim() && !postImagePreview && !postImageUrl.trim())}
+                disabled={isSubmittingPost || (!postContent.trim())}
                 className="btn btn-sm btn-primary"
                 style={{
                   padding: '5px 20px',
@@ -3108,10 +2902,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
                   attendees = [];
                 }
                 const isAttending = attendees.some((a: any) => 
-                  (a.userId !== undefined && a.userId === user.id) ||
-                  (a.user_id !== undefined && a.user_id === user.id) ||
-                  (a.userName && a.userName === user.name) ||
-                  (a.user_name && a.user_name === user.name)
+                  samePerson(a, user)
                 );
 
                 return (
@@ -3343,7 +3134,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
                 ) : (
                   <>
                     <span>⬇</span>
-                    <span>이전 글 10개 더보기 ({feedTimeline.length - visibleFeedCount}개 남음)</span>
+                    <span>이전 글 10개 더보기</span>
                   </>
                 )}
               </button>
@@ -3655,7 +3446,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
                   모영 총무 자율 위임 및 협의
                 </h3>
                 <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', margin: '4px 0 0 0' }}>
-                  모영 총무는 1~3명까지 유지 가능하며, 현직 총무 전원의 찬성으로 즉시 반영됩니다.
+                  모영 총무는 1~3명까지 유지 가능하며, 현직 총무 2명(1명이면 본인)의 찬성으로 반영됩니다.
                 </p>
               </div>
               <button onClick={() => setShowHandoverModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
@@ -3713,7 +3504,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
                           {vote.action_type === 'appoint' ? '✨ 신임 총무 추가' : '👋 총무 해임'} : <strong>{vote.target_user_name}</strong>
                         </div>
                         <div style={{ fontSize: '11.5px', color: '#b45309', marginTop: '2px' }}>
-                          발의: {vote.proposer_name} · 찬성 ({vote.agreed_user_ids.length}/{managers.length}명)
+                          발의: {vote.proposer_name} · 찬성 ({vote.agreed_user_ids.length}/{Math.min(2, managers.length)}명)
                         </div>
                       </div>
 
@@ -3788,7 +3579,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
                     padding: '4px'
                   }}>
                     {(data?.churchMembers || [])
-                      .filter(m => !managers.includes(m.name))
+                      .filter(m => !managerIds(club).includes(String(m.id)))
                       .filter(m => !handoverSearch || m.name.includes(handoverSearch) || m.cell_name.includes(handoverSearch))
                       .map(m => (
                         <div
@@ -3816,7 +3607,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
                   <label className="form-label">해임할 현직 총무 선택</label>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                     {(data?.churchMembers || [])
-                      .filter(m => managers.includes(m.name))
+                      .filter(m => managerIds(club).includes(String(m.id)))
                       .map(m => (
                         <div
                           key={m.id}

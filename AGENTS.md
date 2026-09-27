@@ -78,3 +78,11 @@ cd d:\Project\DFMC_Moyoung ; cmd /c "npm run build && npx firebase deploy --only
 - 명시적인 요청 없이 배포·push·커밋하지 않는다. 문서 변경만으로 앱 구현 완료를 선언하지 않는다.
 ## 9. UI 보존 (사용자 명시 요청)
 기존 App.tsx, pages/LoginPage.tsx·LobbyPage.tsx·ClubDetailPage.tsx와 CSS를 UI 기준으로 삼는다. 별도 검증 화면을 사용자 제품 화면으로 대체하거나 완성된 통합으로 안내하지 않는다. 신규 Firebase 기능은 기존 화면의 구조·스타일을 유지하면서 연결한다.
+
+## 10. 2026-09-27 정비 정책
+
+- 사용자가 사진 업로드 제거를 요청했다. 이전 압축/업로드 유지 규칙보다 우선하며 새 사진 첨부를 다시 활성화하지 않는다. 기존 이미지 열람은 유지한다.
+- 로그인 전환은 사용자 요청으로 보류 중이다. 브라우저 경로 검사를 운영 보안 완료로 표현하지 않는다.
+- 총무 판별은 manager_ids(기존 회원 고유 ID), 이름은 표시 전용이다. 목표 Firebase UID leaderUids와 혼용하지 않는다.
+- 일정/투표 날짜는 functions/src/dateTime.js를 공통 사용한다. 준비 표시 없는 운영 데이터의 읽기 경로를 일괄 전환하지 않는다.
+- 최신 상태/제약은 docs/MAINTENANCE_2026_09_27.md를 읽는다.

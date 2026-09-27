@@ -79,4 +79,7 @@ export const setClubMembership = onCall({ region: 'asia-northeast3', maxInstance
 
 export { projectActivity } from './participationTrigger.js';export { projectPost, projectSchedule, projectPoll, expireFeedItems } from './feedTriggers.js';
 
-export { projectHomeSchedule, distributeHomeSummary, projectMemberHome, advanceHomeScheduleItems } from './homeTriggers.js';
+export { projectHomeSchedule, distributeHomeSummary, projectMemberHome, advanceHomeScheduleItems, projectClubHome, projectUserHome } from './homeTriggers.js';
+
+export { legacyLobbySchedule,legacyLobbyClub,legacyLobbyNotice,legacyLobbyPopup,legacyLobbyCell,legacyLobbySettings,advanceLegacyLobby } from './legacyLobbyProjection.js';
+export { manageDomain } from './adminDomain.js';

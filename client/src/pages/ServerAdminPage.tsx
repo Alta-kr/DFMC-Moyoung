@@ -1,3 +1,4 @@
+import { accountCache, cacheForAccount } from '../firebase/accountCache';
 import React, { useState, useEffect } from 'react';
 import { User, ServerMetrics } from '../types';
 import { Server, HardDrive, Activity, Users, ShieldAlert, CheckCircle, RefreshCw, Search, ChevronDown, BarChart3, Eye, Trash2, UserX } from 'lucide-react';
@@ -8,9 +9,10 @@ interface ServerAdminPageProps {
 }
 
 export const ServerAdminPage: React.FC<ServerAdminPageProps> = ({ onNavigateLobby }) => {
+  const accountCache = cacheForAccount(JSON.parse(localStorage.getItem('dfmc_user') || 'null')?.username || 'anonymous');
   const [metrics, setMetrics] = useState<ServerMetrics | null>(() => {
     try {
-      const cached = localStorage.getItem('dfmc_sa_metrics_cache');
+      const cached = accountCache.getItem('dfmc_sa_metrics_cache');
       return cached ? JSON.parse(cached) : null;
     } catch {
       return null;
@@ -18,7 +20,7 @@ export const ServerAdminPage: React.FC<ServerAdminPageProps> = ({ onNavigateLobb
   });
   const [users, setUsers] = useState<User[]>(() => {
     try {
-      const cached = localStorage.getItem('dfmc_sa_users_cache');
+      const cached = accountCache.getItem('dfmc_sa_users_cache');
       return cached ? JSON.parse(cached) : [];
     } catch {
       return [];
@@ -28,7 +30,7 @@ export const ServerAdminPage: React.FC<ServerAdminPageProps> = ({ onNavigateLobb
   const [guestSearchTerm, setGuestSearchTerm] = useState('');
   const [loading, setLoading] = useState<boolean>(() => {
     try {
-      const cached = localStorage.getItem('dfmc_sa_users_cache');
+      const cached = accountCache.getItem('dfmc_sa_users_cache');
       return !cached || JSON.parse(cached).length === 0;
     } catch {
       return true;
@@ -39,7 +41,7 @@ export const ServerAdminPage: React.FC<ServerAdminPageProps> = ({ onNavigateLobb
   const [showAnalyticsModal, setShowAnalyticsModal] = useState(false);
   const [reports, setReports] = useState<any[]>(() => {
     try {
-      const cached = localStorage.getItem('dfmc_sa_reports_cache');
+      const cached = accountCache.getItem('dfmc_sa_reports_cache');
       return cached ? JSON.parse(cached) : [];
     } catch {
       return [];
@@ -47,7 +49,7 @@ export const ServerAdminPage: React.FC<ServerAdminPageProps> = ({ onNavigateLobb
   });
   const [activeTab, setActiveTab] = useState<'users' | 'guests' | 'reports'>('users');
 
-  const token = localStorage.getItem('dfmc_token');
+  const token = accountCache.getItem('dfmc_token');
 
   // Load metrics and users
   const loadData = async () => {
@@ -61,19 +63,19 @@ export const ServerAdminPage: React.FC<ServerAdminPageProps> = ({ onNavigateLobb
       if (metricsRes.ok) {
         const mData = await metricsRes.json();
         setMetrics(mData);
-        try { localStorage.setItem('dfmc_sa_metrics_cache', JSON.stringify(mData)); } catch {}
+        try { accountCache.setItem('dfmc_sa_metrics_cache', JSON.stringify(mData)); } catch {}
       }
       if (usersRes.ok) {
         const uData = await usersRes.json();
         const uList = Array.isArray(uData) ? uData : (uData.users || []);
         setUsers(uList);
-        try { localStorage.setItem('dfmc_sa_users_cache', JSON.stringify(uList)); } catch {}
+        try { accountCache.setItem('dfmc_sa_users_cache', JSON.stringify(uList)); } catch {}
       }
       if (reportsRes.ok) {
         const rData = await reportsRes.json();
         const rList = rData.reports || [];
         setReports(rList);
-        try { localStorage.setItem('dfmc_sa_reports_cache', JSON.stringify(rList)); } catch {}
+        try { accountCache.setItem('dfmc_sa_reports_cache', JSON.stringify(rList)); } catch {}
       }
     } catch (err) {
       console.error('Failed to load server admin data:', err);

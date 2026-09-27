@@ -91,7 +91,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onNavigate
 
       if (data.requires2FA || data.requires2fa) {
         setShow2FAModal(true);
-        setDevCodeHint(data.devCodeHint || '기본 코드: 8470');
+        setDevCodeHint(data.devCodeHint || '이메일 인증번호를 입력해주세요.');
         setTwoFACode(['', '', '', '', '']);
         setTwoFAError('');
         setTimeout(() => inputRefs.current[0]?.focus(), 100);

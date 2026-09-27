@@ -27,11 +27,11 @@ export async function syncMemberSummary(db, clubId, uid) {
       db.doc('clubs/' + clubId), db.doc('clubs/' + clubId + '/members/' + uid),
       db.doc('users/' + uid), db.doc('users/' + uid + '/summaries/home'));
     const club = clubDoc.data(), member = memberDoc.data(), home = homeDoc.data();
-    if (!userDoc.exists) return;
+
     const previous = Array.isArray(home?.clubs) ? home.clubs : [];
     const entry = previous.find(item => item.id === clubId);
     const allowed = club?.membershipSchemaVersion === 1 && typeof club.name === 'string'
-      && member?.status === 'active' && roles.has(member.role) && roles.has(userDoc.data().role);
+      && userDoc.exists && member?.status === 'active' && roles.has(member.role) && roles.has(userDoc.data()?.role) && !userDoc.data()?.is_guest;
     const next = club?.publicSummary?.nextSchedule;
     const replacement = allowed ? { id: clubId, name: club.name,
       nextSchedule: next && typeof next.title === 'string' && Number.isFinite(next.startsAt)
@@ -76,4 +76,25 @@ export async function advanceHomeSchedules(db, now = Date.now()) {
   const jobs = await db.collection('_homeSummaryJobs').where('pending', '==', true).limit(100).get();
   for (const job of jobs.docs) await processHomeSummaryPage(db, job.id);
   return due.size;
+}
+
+export async function queueClubHomeRefresh(db, clubId) {
+  const ref = db.doc('_homeSummaryJobs/' + clubId);
+  await db.runTransaction(async tx => {
+    const job = await tx.get(ref);
+    tx.set(ref, {revision:(job.data()?.revision ?? 0)+1,cursor:null,pending:true});
+  });
+}
+export async function refreshUserHomes(db, uid) {
+  const home = (await db.doc('users/' + uid + '/summaries/home').get()).data();
+  const ids=new Set((home?.clubs ?? []).map(club=>club.id));
+  let cursor=null;
+  do {
+    let query=db.collection('users/'+uid+'/_clubLinks').orderBy(FieldPath.documentId()).limit(100);
+    if(cursor) query=query.startAfter(cursor);
+    const links=await query.get();
+    for(const link of links.docs) ids.add(link.id);
+    cursor=links.size===100?links.docs.at(-1).id:null;
+  } while(cursor);
+  for(const id of ids) await syncMemberSummary(db,id,uid);
 }

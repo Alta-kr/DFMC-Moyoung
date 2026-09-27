@@ -114,3 +114,7 @@ cmd /c "npm run build && npx firebase deploy --only hosting"
 ## 2026-09-27 실제 배포 기록
 Firebase CLI 인증 후 firebase deploy --only hosting --project moyoung-abd47 --non-interactive 실행 완료. 기존 UI의 client/dist를 배포했고 운영 HTTP 200과 index-Bm3qO0-d.js 제공을 확인했다. 전체 빌드 통과(기존 번들 경고 유지).
 신규 auth-preview 코드·Rules·Functions·인덱스·계정 이전은 운영에 적용하지 않았다. previewadmin/previewfutsal은 로컬 전용이다. 배포 인증코드·토큰은 문서에 보관하지 않는다. 최신 전체 상태는 [개발 문서](docs/README.md)를 따른다.
+
+## 2026-09-27 정비 코드 배포 주의
+
+현재 운영 Firestore 규칙이 전체 공개 상태임을 조회로 확인했다. 이번 정비 코드는 미배포다. `storage.rules`는 새 업로드를 거부하도록 변경했으나 배포하지 않았다. 로그인 전환을 보류했으므로 기존 화면을 깨뜨리지 않고 엄격한 Firestore 규칙으로 전환하는 작업은 아직 끝나지 않았다. 배포 순서와 읽기 모델 준비 표시, 관리자 Callable 연결 범위는 [최신 정비 기록](docs/MAINTENANCE_2026_09_27.md)을 따른다. preview 규칙을 운영 파일에 단순 복사하지 않는다.

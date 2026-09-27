@@ -79,6 +79,80 @@
           "fieldPath": "__name__"
         }
       ]
+    },
+    {
+      "collectionGroup": "club_schedules",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "club_id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "startsAtMs",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "club_comments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "club_id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "post_id",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "club_comments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "club_id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "poll_id",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "club_comments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "club_id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "schedule_id",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "club_reactions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "club_id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "target_id",
+          "order": "ASCENDING"
+        }
+      ]
     }
   ],
   "fieldOverrides": []

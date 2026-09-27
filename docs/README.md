@@ -1,5 +1,7 @@
 # Moyoung 개발 문서
 
+최신: [로그인 전환 전 기능 정비](MAINTENANCE_2026_09_27.md). 기존 UI에 사진 제거·동시 참여 저장·ID/날짜/캐시 정비 및 준비된 홈/피드 조회 경로를 연결했다. **이번 변경은 미배포이며 운영 보안 전환은 로그인 연결 전까지 미완료다.**
+
 2026-09-27 실제 저장소 D:/Project/DFMC_Moyoung의 코드와 문서를 확인해 작성했다. 초기 문서 정리 후 로컬 인증·홈·피드·관리자 멤버십·후처리·이전 검증을 구현했다. 이후 기존 UI를 Hosting에 배포했다. 신규 구조의 운영 통합과 데이터 이전은 아직 하지 않았다.
 
 이전 대화와 현재 요청의 원칙을 반영했다. 이전 대화의 동명 Markdown 첨부 본문은 확보되지 않았으므로 서버 문서는 원본 복사본이 아닌 원칙의 재구성이다.
@@ -26,7 +28,7 @@
 - 명령: firebase deploy --only hosting --project moyoung-abd47 --non-interactive.
 - 결과: release complete / Deploy complete 확인. 운영 HTTP 200 및 배포 번들 index-Bm3qO0-d.js 일치 확인.
 - 배포 전 전체 npm run build 통과. 기존 500 kB 번들 경고는 남아 있다.
-- Firestore/Storage 규칙, Functions, 인덱스는 이번에 배포하지 않았다. 실제 배포된 기존 규칙을 조회·검증한 것은 아니다.
+- Firestore/Storage 규칙, Functions, 인덱스는 이번에 배포하지 않았다. 당시에는 실제 배포 규칙을 조회하지 않았다. 이후 실제 Firestore 공개 규칙을 확인했으며 최신 정비 문서에 기록했다.
 - 운영 계정 생성·권한 변경·백필은 실행하지 않았다. Firebase CLI 인증 완료는 배포용 개발자 로그인이며 서비스 회원 인증 전환을 뜻하지 않는다.
 
 ### 실행 환경과 계정
@@ -104,3 +106,5 @@
 [직접 실행하기](TRY_PREVIEW.md): 루트 START_MOYOUNG_PREVIEW.cmd 더블클릭으로 체험 계정·샘플 데이터·로컬 서버를 준비한다.
 
 기본 체험은 기존 UI를 사용하는 3001 포트로 변경했다. 이메일/피드 검증 화면은 START_AUTH_TEST_PREVIEW.cmd로 분리했다. 최신 [직접 실행 안내](TRY_PREVIEW.md)를 따른다.
+
+후속 구현: [이전 사전 검사](MIGRATION_PREVIEW.md)에 기존 회원/총무 ID와 날짜 충돌 검사를 추가했다. 로그인 전환 전에 로컬 입력으로 검사할 수 있다.

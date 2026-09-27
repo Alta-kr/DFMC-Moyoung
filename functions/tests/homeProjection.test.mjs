@@ -28,6 +28,8 @@ test('schedule source changes propagate to home; time, deletion, revocation and 
   try {
     await club.set({ name: '홈 모영', membershipSchemaVersion: 1, leaderUids: [] });
     await db.doc('users/' + uid).set({ role: 'member' });
+    await db.doc('clubs/other').set({name:'다른 모영',membershipSchemaVersion:1});
+    await db.doc('clubs/other/members/'+uid).set({status:'active',role:'member'});
     await home.set({ notice: '기존 공지', clubs: [{ id: 'other', name: '다른 모영', nextSchedule: null }], updatedAt: 1 });
     await member.set({ status: 'active', role: 'member' });
     await source.set(raw);

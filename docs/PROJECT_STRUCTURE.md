@@ -12,7 +12,7 @@ DFMC_Moyoung/
       config.ts                # App/Firestore/Storage
       setupFirebase.ts         # 인터셉터 등록
       apiInterceptor.ts        # 현재 /api/* 호환 처리와 데이터 로직
-      firebaseService.ts       # 시드, 이미지 압축/업로드
+      firebaseService.ts       # 로컬 ui-preview 시드; 사진 업로드 제거
     pages/                     # Login, Lobby, ClubDetail, HeadAdmin, ServerAdmin
     components/                # 헤더, 내 정보, 모달 등
     types.ts                   # 공통 타입

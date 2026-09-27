@@ -1,3 +1,4 @@
+import { accountCache, cacheForAccount } from '../firebase/accountCache';
 import React, { useState, useEffect } from 'react';
 import { User, CellItem, PopupItem, Notice, Club, MemberItem, TargetedWelcomeItem } from '../types';
 import { PopupModal } from '../components/PopupModal';
@@ -15,6 +16,7 @@ interface HeadAdminPageProps {
 }
 
 export const HeadAdminPage: React.FC<HeadAdminPageProps> = ({ user, onBackToLobby }) => {
+  const accountCache = cacheForAccount(user?.username || 'anonymous');
   const isMediaAdmin = user?.role === 'media_admin';
 
   // State for Club Analytics Modal
@@ -44,7 +46,7 @@ export const HeadAdminPage: React.FC<HeadAdminPageProps> = ({ user, onBackToLobb
   // State for Cells (instant localStorage cache hydration)
   const [cells, setCells] = useState<CellItem[]>(() => {
     try {
-      const cached = localStorage.getItem('dfmc_cells_cache');
+      const cached = accountCache.getItem('dfmc_cells_cache');
       return cached ? JSON.parse(cached) : [];
     } catch {
       return [];
@@ -52,7 +54,7 @@ export const HeadAdminPage: React.FC<HeadAdminPageProps> = ({ user, onBackToLobb
   });
   const [cellsLoading, setCellsLoading] = useState<boolean>(() => {
     try {
-      const cached = localStorage.getItem('dfmc_cells_cache');
+      const cached = accountCache.getItem('dfmc_cells_cache');
       return !cached || JSON.parse(cached).length === 0;
     } catch {
       return true;
@@ -79,7 +81,7 @@ export const HeadAdminPage: React.FC<HeadAdminPageProps> = ({ user, onBackToLobb
   // State for Clubs (with instant localStorage cache hydration)
   const [clubs, setClubs] = useState<Club[]>(() => {
     try {
-      const cached = localStorage.getItem('dfmc_clubs_cache');
+      const cached = accountCache.getItem('dfmc_clubs_cache');
       return cached ? JSON.parse(cached) : [];
     } catch {
       return [];
@@ -87,7 +89,7 @@ export const HeadAdminPage: React.FC<HeadAdminPageProps> = ({ user, onBackToLobb
   });
   const [clubsLoading, setClubsLoading] = useState<boolean>(() => {
     try {
-      const cached = localStorage.getItem('dfmc_clubs_cache');
+      const cached = accountCache.getItem('dfmc_clubs_cache');
       return !cached || JSON.parse(cached).length === 0;
     } catch {
       return true;
@@ -102,7 +104,7 @@ export const HeadAdminPage: React.FC<HeadAdminPageProps> = ({ user, onBackToLobb
   // State for Media Admins (with instant localStorage cache hydration)
   const [mediaAdmins, setMediaAdmins] = useState<MemberItem[]>(() => {
     try {
-      const cached = localStorage.getItem('dfmc_media_admins_cache');
+      const cached = accountCache.getItem('dfmc_media_admins_cache');
       return cached ? JSON.parse(cached) : [];
     } catch {
       return [];
@@ -110,7 +112,7 @@ export const HeadAdminPage: React.FC<HeadAdminPageProps> = ({ user, onBackToLobb
   });
   const [mediaAdminsLoading, setMediaAdminsLoading] = useState<boolean>(() => {
     try {
-      const cached = localStorage.getItem('dfmc_media_admins_cache');
+      const cached = accountCache.getItem('dfmc_media_admins_cache');
       return !cached || JSON.parse(cached).length === 0;
     } catch {
       return true;
@@ -126,7 +128,7 @@ export const HeadAdminPage: React.FC<HeadAdminPageProps> = ({ user, onBackToLobb
   const [showManagerModal, setShowManagerModal] = useState(false);
   const [members, setMembers] = useState<MemberItem[]>(() => {
     try {
-      const cached = localStorage.getItem('dfmc_members_cache');
+      const cached = accountCache.getItem('dfmc_members_cache');
       return cached ? JSON.parse(cached) : [];
     } catch {
       return [];
@@ -134,7 +136,7 @@ export const HeadAdminPage: React.FC<HeadAdminPageProps> = ({ user, onBackToLobb
   });
   const [membersLoading, setMembersLoading] = useState<boolean>(() => {
     try {
-      const cached = localStorage.getItem('dfmc_members_cache');
+      const cached = accountCache.getItem('dfmc_members_cache');
       return !cached || JSON.parse(cached).length === 0;
     } catch {
       return true;
@@ -149,7 +151,7 @@ export const HeadAdminPage: React.FC<HeadAdminPageProps> = ({ user, onBackToLobb
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const token = localStorage.getItem('dfmc_token');
+  const token = accountCache.getItem('dfmc_token');
 
   // Fetch all admin data
   const loadAdminData = async () => {
@@ -163,7 +165,7 @@ export const HeadAdminPage: React.FC<HeadAdminPageProps> = ({ user, onBackToLobb
           .then((cData) => {
             const cellList = Array.isArray(cData) ? cData : (cData.cells || []);
             setCells(cellList);
-            try { localStorage.setItem('dfmc_cells_cache', JSON.stringify(cellList)); } catch {}
+            try { accountCache.setItem('dfmc_cells_cache', JSON.stringify(cellList)); } catch {}
           })
           .catch((err) => console.error('Failed to load cells:', err))
           .finally(() => setCellsLoading(false));
@@ -174,7 +176,7 @@ export const HeadAdminPage: React.FC<HeadAdminPageProps> = ({ user, onBackToLobb
           .then((clData) => {
             const clubList = Array.isArray(clData) ? clData : (clData.clubs || []);
             setClubs(clubList);
-            try { localStorage.setItem('dfmc_clubs_cache', JSON.stringify(clubList)); } catch {}
+            try { accountCache.setItem('dfmc_clubs_cache', JSON.stringify(clubList)); } catch {}
           })
           .catch((err) => console.error('Failed to load clubs:', err))
           .finally(() => setClubsLoading(false));
@@ -185,7 +187,7 @@ export const HeadAdminPage: React.FC<HeadAdminPageProps> = ({ user, onBackToLobb
           .then((maData) => {
             const maList = Array.isArray(maData) ? maData : (maData.mediaAdmins || []);
             setMediaAdmins(maList);
-            try { localStorage.setItem('dfmc_media_admins_cache', JSON.stringify(maList)); } catch {}
+            try { accountCache.setItem('dfmc_media_admins_cache', JSON.stringify(maList)); } catch {}
           })
           .catch((err) => console.error('Failed to load media admins:', err))
           .finally(() => setMediaAdminsLoading(false));
@@ -388,7 +390,7 @@ export const HeadAdminPage: React.FC<HeadAdminPageProps> = ({ user, onBackToLobb
         const rawList = Array.isArray(data) ? data : (data.members || []);
         const list = rawList.filter((m: any) => m.role !== 'guest' && !m.is_guest);
         setMembers(list);
-        try { localStorage.setItem('dfmc_members_cache', JSON.stringify(list)); } catch {}
+        try { accountCache.setItem('dfmc_members_cache', JSON.stringify(list)); } catch {}
       }
     } catch (err) {
       console.error('Failed to load members:', err);
@@ -422,7 +424,7 @@ export const HeadAdminPage: React.FC<HeadAdminPageProps> = ({ user, onBackToLobb
           return (a.name || '').localeCompare(b.name || '', 'ko');
         });
         try {
-          localStorage.setItem('dfmc_cells_cache', JSON.stringify(newCells));
+          accountCache.setItem('dfmc_cells_cache', JSON.stringify(newCells));
         } catch {}
         return newCells;
       });
@@ -445,7 +447,7 @@ export const HeadAdminPage: React.FC<HeadAdminPageProps> = ({ user, onBackToLobb
     setCells(prev => {
       const updated = prev.filter(c => c.id !== id);
       try {
-        localStorage.setItem('dfmc_cells_cache', JSON.stringify(updated));
+        accountCache.setItem('dfmc_cells_cache', JSON.stringify(updated));
       } catch {}
       return updated;
     });
@@ -505,7 +507,7 @@ export const HeadAdminPage: React.FC<HeadAdminPageProps> = ({ user, onBackToLobb
     setTargetClubForManager(club);
     setMemberSearchTerm('');
     if (club) {
-      const current = club.manager_names ? club.manager_names.split(',').map(s => s.trim()).filter(Boolean) : [];
+      const current = (club.manager_ids || []).map(String);
       setSelectedManagerNames(current);
     } else {
       const current = newClubManagers ? newClubManagers.split(',').map(s => s.trim()).filter(Boolean) : [];
@@ -530,24 +532,24 @@ export const HeadAdminPage: React.FC<HeadAdminPageProps> = ({ user, onBackToLobb
   };
 
   const handleSaveManagers = async () => {
-    const joined = selectedManagerNames.join(', ');
+    const joined = selectedManagerNames.map(id => members.find(m => String(m.id) === id)?.name || id).join(', ');
     if (targetClubForManager) {
       try {
         const res = await fetch(`/api/head-admin/clubs/${targetClubForManager.id}/managers`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ manager_names: joined }),
+          body: JSON.stringify({ manager_ids: selectedManagerNames }),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
         flashMessage(`[${targetClubForManager.name}] 총무 명단이 업데이트되었습니다. (${selectedManagerNames.length}명)`);
-        setClubs(prev => prev.map(c => c.id === targetClubForManager.id ? { ...c, manager_names: joined } : c));
+        setClubs(prev => prev.map(c => c.id === targetClubForManager.id ? { ...c, manager_names: joined, manager_ids: selectedManagerNames } : c));
         loadAdminData();
       } catch (err: any) {
         setError(err.message);
       }
     } else {
-      setNewClubManagers(joined);
+      setNewClubManagers(selectedManagerNames.join(', '));
     }
     setShowManagerModal(false);
   };
@@ -582,7 +584,7 @@ export const HeadAdminPage: React.FC<HeadAdminPageProps> = ({ user, onBackToLobb
       if (!res.ok) throw new Error(data.error);
 
       // 로비 캐시 무효화 (팝업 즉각 반영)
-      localStorage.removeItem('dfmc_lobby_cache');
+      accountCache.removeItem('dfmc_lobby_cache');
       flashMessage(data.message || (popupIsActive ? '팝업 설정이 저장되었습니다.' : '팝업이 비활성화(숨김)되었습니다.'));
     } catch (err: any) {
       setError(err.message);
@@ -609,7 +611,7 @@ export const HeadAdminPage: React.FC<HeadAdminPageProps> = ({ user, onBackToLobb
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
 
-      localStorage.removeItem('dfmc_lobby_cache');
+      accountCache.removeItem('dfmc_lobby_cache');
       flashMessage(data.message);
       if (data.notice) {
         setActiveNotice(data.notice);
@@ -631,7 +633,7 @@ export const HeadAdminPage: React.FC<HeadAdminPageProps> = ({ user, onBackToLobb
     // 0ms 낙관적 업데이트
     setNoticeIsActive(newActive);
     setActiveNotice({ ...activeNotice, is_active: newActive ? 1 : 0 });
-    localStorage.removeItem('dfmc_lobby_cache');
+    accountCache.removeItem('dfmc_lobby_cache');
 
     try {
       const res = await fetch('/api/head-admin/notices/toggle', {
@@ -658,7 +660,7 @@ export const HeadAdminPage: React.FC<HeadAdminPageProps> = ({ user, onBackToLobb
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      localStorage.removeItem('dfmc_lobby_cache');
+      accountCache.removeItem('dfmc_lobby_cache');
       flashMessage(data.message);
       setActiveNotice(null);
       setNoticeTitle('');
@@ -683,7 +685,7 @@ export const HeadAdminPage: React.FC<HeadAdminPageProps> = ({ user, onBackToLobb
         body: JSON.stringify({
           name: clubNameToSave,
           icon: newClubIcon,
-          manager_names: newClubManagers,
+          manager_ids: newClubManagers.split(',').map(s=>s.trim()).filter(Boolean),
         }),
       });
       const data = await res.json();
@@ -696,7 +698,7 @@ export const HeadAdminPage: React.FC<HeadAdminPageProps> = ({ user, onBackToLobb
       setShowNewClubModal(false);
       setClubs(prev => {
         const updated = [...prev, data.club];
-        try { localStorage.setItem('dfmc_clubs_cache', JSON.stringify(updated)); } catch {}
+        try { accountCache.setItem('dfmc_clubs_cache', JSON.stringify(updated)); } catch {}
         return updated;
       });
       loadAdminData();
@@ -716,7 +718,7 @@ export const HeadAdminPage: React.FC<HeadAdminPageProps> = ({ user, onBackToLobb
       flashMessage(data.message);
       setClubs(prev => {
         const updated = prev.filter(c => c.id !== id);
-        try { localStorage.setItem('dfmc_clubs_cache', JSON.stringify(updated)); } catch {}
+        try { accountCache.setItem('dfmc_clubs_cache', JSON.stringify(updated)); } catch {}
         return updated;
       });
       loadAdminData();
@@ -2337,7 +2339,7 @@ export const HeadAdminPage: React.FC<HeadAdminPageProps> = ({ user, onBackToLobb
                           {currentManagers.length > 0 ? (
                             currentManagers.map((mName) => (
                               <span
-                                key={mName}
+                                key={members.find(m=>String(m.id)===mName)?.name || mName}
                                 style={{
                                   background: '#e0e7ff',
                                   color: '#3730a3',
@@ -2850,20 +2852,20 @@ export const HeadAdminPage: React.FC<HeadAdminPageProps> = ({ user, onBackToLobb
                       .slice(0, 15)
                       .map((m) => {
                         const currentList = newClubManagers.split(',').map(s => s.trim()).filter(Boolean);
-                        const isAlready = currentList.includes(m.name);
+                        const isAlready = currentList.includes(String(m.id));
                         return (
                           <div
                             key={m.id}
                             onClick={() => {
                               if (isAlready) {
-                                const updated = currentList.filter(n => n !== m.name).join(', ');
+                                const updated = currentList.filter(n => n !== String(m.id)).join(', ');
                                 setNewClubManagers(updated);
                               } else {
                                 if (currentList.length >= 3) {
                                   alert('총무는 모영당 최대 3명까지만 선임할 수 있습니다.');
                                   return;
                                 }
-                                setNewClubManagers([...currentList, m.name].join(', '));
+                                setNewClubManagers([...currentList, String(m.id)].join(', '));
                                 setInlineManagerSearch('');
                               }
                             }}
@@ -3195,9 +3197,9 @@ export const HeadAdminPage: React.FC<HeadAdminPageProps> = ({ user, onBackToLobb
                           fontSize: '11px',
                           fontWeight: '700'
                         }}>
-                          {name.slice(0, 1)}
+                          {(members.find(m => String(m.id) === name)?.name || name).slice(0, 1)}
                         </span>
-                        <strong style={{ fontSize: '13px', color: '#1e40af' }}>{name}</strong>
+                        <strong style={{ fontSize: '13px', color: '#1e40af' }}>{members.find(m => String(m.id) === name)?.name || name}</strong>
                         <span className="badge" style={{ fontSize: '10px', padding: '1px 6px', background: '#dbeafe', color: '#1d4ed8' }}>
                           모영 총무
                         </span>
@@ -3207,7 +3209,7 @@ export const HeadAdminPage: React.FC<HeadAdminPageProps> = ({ user, onBackToLobb
                         onClick={() => handleToggleManager(name)}
                         className="btn btn-sm btn-danger"
                         style={{ fontSize: '11px', padding: '3px 8px', borderRadius: '4px', fontWeight: '700' }}
-                        title={`[${name}] 총무 즉시 해임`}
+                        title={`[${members.find(m => String(m.id) === name)?.name || name}] 총무 해임 선택`}
                       >
                         <UserX size={12} />
                         해임하기
@@ -3257,7 +3259,7 @@ export const HeadAdminPage: React.FC<HeadAdminPageProps> = ({ user, onBackToLobb
                   m.username.toLowerCase().includes(memberSearchTerm.toLowerCase())
                 )
                 .map((m) => {
-                  const isAppointed = selectedManagerNames.includes(m.name);
+                  const isAppointed = selectedManagerNames.includes(String(m.id));
                   return (
                     <div
                       key={m.id}
@@ -3306,7 +3308,7 @@ export const HeadAdminPage: React.FC<HeadAdminPageProps> = ({ user, onBackToLobb
                       {isAppointed ? (
                         <button
                           type="button"
-                          onClick={() => handleToggleManager(m.name)}
+                          onClick={() => handleToggleManager(String(m.id))}
                           className="btn btn-sm btn-danger"
                           style={{ fontSize: '11px', padding: '4px 9px', borderRadius: '5px', fontWeight: '700' }}
                           title={`[${m.name}] 총무 해임`}
@@ -3317,7 +3319,7 @@ export const HeadAdminPage: React.FC<HeadAdminPageProps> = ({ user, onBackToLobb
                       ) : (
                         <button
                           type="button"
-                          onClick={() => handleToggleManager(m.name)}
+                          onClick={() => handleToggleManager(String(m.id))}
                           disabled={selectedManagerNames.length >= 3}
                           className="btn btn-sm btn-primary"
                           style={{

@@ -17,13 +17,13 @@ try {
     const common = { cell_name: '둔산제일교회', cell_verified: 1, previewFixture: true, created_at: new Date().toISOString() };
     tx.set(adminRef, { ...common, id: 900001, username: 'previewadmin', name: '체험관리자', role: 'head_admin' });
     tx.set(leaderRef, { ...common, id: 900002, username: 'previewfutsal', name: '체험총무', role: 'member' });
-    const managers = [...new Set((club.data().manager_names || '').split(',').map(x => x.trim()).filter(x => x && x !== '체험총무'))];
-    // The local seed already has three leaders. Replace the last sample slot, never add a fourth.
-    tx.update(clubRef, { manager_names: [...managers.slice(0, 2), '체험총무'].join(', ') });
+    // Keep fixture permissions and display names consistent.
+    tx.update(clubRef, { manager_ids: ['900002'], manager_names: '체험총무' });
   });
   const [admin, leader, club] = await db.getAll(db.doc('users/previewadmin'), db.doc('users/previewfutsal'), db.doc('clubs/1'));
   if (admin.data().role !== 'head_admin' || leader.data().role !== 'member'
-    || !club.data().manager_names.split(',').map(x => x.trim()).includes(leader.data().name)) throw new Error('Verification failed');
+    || JSON.stringify(club.data().manager_ids) !== JSON.stringify(['900002'])
+    || club.data().manager_names !== leader.data().name) throw new Error('Verification failed');
   console.log('전체관리자: previewadmin / 체험관리자');
   console.log('풋살 총무: previewfutsal / 체험총무');
 } finally { await db.terminate(); await deleteApp(app); }

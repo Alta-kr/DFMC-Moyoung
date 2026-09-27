@@ -33,3 +33,61 @@ test('mapping collisions, ambiguous aliases, missing ownership evidence and inva
   assert.equal(previewMigration(date, now).cards.length, 0);
   assert.throws(() => previewMigration({}, now));
 });
+
+test('legacy audit resolves duplicate names by explicit IDs without disclosing names', () => {
+  const input=fixture();
+  input.legacyUsers=[{legacyId:'old',id:1,name:'PRIVATE_SAME_NAME',role:'member'},
+    {legacyId:'other',id:2,name:'PRIVATE_SAME_NAME',role:'member'}];
+  input.accounts.push({uid:'uid_b'});
+  input.identityMappings.push({legacyId:'other',uid:'uid_b',verificationRef:'checked'});
+  Object.assign(input.clubs[0],{manager_ids:['2'],manager_names:'PRIVATE_SAME_NAME'});
+  const before=structuredClone(input),result=previewMigration(input,now);
+  assert.equal(result.readyForReview,true);
+  assert.deepEqual(result.legacyAudit.managerCandidates,[{clubIndex:0,userIndexes:[1]}]);
+  assert.equal(result.legacyAudit.completenessVerified,false);
+  assert.equal(JSON.stringify(result).includes('PRIVATE_SAME_NAME'),false);
+  assert.deepEqual(input,before);
+});
+
+test('legacy identity ambiguity, guests and name-only managers block review',()=>{
+  const input=fixture();
+  input.legacyUsers=[{legacyId:'old',id:1,role:'member'},{legacyId:'other',id:'1',role:'member'},
+    {legacyId:'guest',id:3,role:'guest'}];
+  input.clubs[0].manager_ids=['1'];
+  let result=previewMigration(input,now);
+  assert.equal(result.readyForReview,false);
+  assert.equal(result.legacyAudit.managerCandidates.length,0);
+  for(const code of ['DUPLICATE_LEGACY_ID','UNMAPPED_LEGACY_USER','MANAGER_ACCOUNT_NOT_UNIQUE']) assert.ok(result.issues.some(issue=>issue.code===code));
+  input.clubs[0].manager_ids=['3'];
+  assert.ok(previewMigration(input,now).issues.some(issue=>issue.code==='GUEST_MANAGER_FORBIDDEN'));
+  delete input.clubs[0].manager_ids;input.clubs[0].manager_names='동명이인';
+  assert.ok(previewMigration(input,now).issues.some(issue=>issue.code==='EXPLICIT_MANAGER_IDS_REQUIRED'));
+  input.clubs[0].manager_ids=['1','2','3','4'];
+  assert.ok(previewMigration(input,now).issues.some(issue=>issue.code==='INVALID_MANAGER_IDS'));
+  assert.throws(()=>previewMigration({...input,legacyUsers:{}},now));
+});
+
+test('schedule ranges and legacy club mappings cannot silently disagree',()=>{
+  const input=fixture();
+  input.sources[0].collection='club_schedules';
+  Object.assign(input.sources[0].data,{club_id:1,event_date:'2026-09-27 14:00 ~ 16:00'});
+  assert.ok(previewMigration(input,now).issues.some(issue=>issue.code==='LEGACY_CLUB_MAPPING_MISMATCH'));
+  input.clubs[0].legacyId=1;
+  assert.equal(previewMigration(input,now).cards.length,1);
+  input.sources[0].data.startsAtMs=Date.parse('2026-09-27T15:00:00+09:00');
+  assert.ok(previewMigration(input,now).issues.some(issue=>issue.code==='CONFLICTING_SCHEDULE_TIME'));
+  delete input.sources[0].data.startsAtMs;
+  input.sources[0].data.event_date='2026-09-27 16:00 ~ 14:00';
+  assert.ok(previewMigration(input,now).issues.some(issue=>issue.code==='INVALID_SCHEDULE_TIME'));
+});
+
+test('conflicting poll deadline and missing legacy mapping are review blockers',()=>{
+  const input=fixture();
+  input.sources[0].collection='club_polls';
+  Object.assign(input.sources[0].data,{options:['A','B'],end_date:'2026-09-27',closesAtMs:Date.parse('2026-09-28T00:00:00Z')});
+  input.legacyUsers=[];
+  const result=previewMigration(input,now);
+  assert.equal(result.readyForReview,false);
+  assert.equal(result.cards.length,0);
+  for(const code of ['CONFLICTING_POLL_DEADLINE','LEGACY_ACCOUNT_NOT_UNIQUE']) assert.ok(result.issues.some(issue=>issue.code===code));
+});

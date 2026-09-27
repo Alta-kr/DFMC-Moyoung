@@ -13,8 +13,7 @@ import {
   limit,
   serverTimestamp
 } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { db, storage } from './config';
+import { db } from './config';
 
 // 1. Initial Seed Data
 const DEFAULT_CELLS = [
@@ -45,11 +44,8 @@ const KOREAN_NAMES = [
 let isInitialized = false;
 
 export async function ensureFirebaseSeeded() {
+  if (!import.meta.env.DEV || import.meta.env.MODE !== 'ui-preview') return;
   if (isInitialized) return;
-  if (typeof window !== 'undefined' && localStorage.getItem('dfmc_seeded_v1') === 'true') {
-    isInitialized = true;
-    return;
-  }
   try {
     // Check if cells exist
     const cellsSnap = await getDocs(collection(db, 'cells'));
@@ -134,7 +130,7 @@ export async function ensureFirebaseSeeded() {
           name: '풋살 모영',
           icon: '⚽',
           description: '풋살과 축구를 통해 건강과 은혜로운 교제를 나누는 모임입니다.',
-          manager_names: '이주환, 강동원, 김민준',
+          manager_ids: ['5','6','7'], manager_names: '이주환, 강동원, 김민준',
           member_count: 28
         },
         {
@@ -142,7 +138,7 @@ export async function ensureFirebaseSeeded() {
           name: '배드민턴 모영',
           icon: '🏸',
           description: '매주 토요일 체육관에서 땀 흘리며 친교하는 배드민턴 클럽입니다.',
-          manager_names: '박민수, 이서준, 박도윤',
+          manager_ids: ['8','9','10'], manager_names: '박민수, 이서준, 박도윤',
           member_count: 35
         },
         {
@@ -150,7 +146,7 @@ export async function ensureFirebaseSeeded() {
           name: '볼링 모영',
           icon: '🎳',
           description: '남녀노소 누구나 즐겁게 스트라이크를 치며 스트레스를 날려요!',
-          manager_names: '최영호, 김지은, 정예준',
+          manager_ids: ['11','12','13'], manager_names: '최영호, 김지은, 정예준',
           member_count: 19
         },
         {
@@ -158,7 +154,7 @@ export async function ensureFirebaseSeeded() {
           name: '독서 모영',
           icon: '📚',
           description: '한 달에 한 권 신앙 서적과 인문학 도서를 읽고 마음을 나누는 시간.',
-          manager_names: '정다은, 최시우, 강하준',
+          manager_ids: ['14','15','16'], manager_names: '정다은, 최시우, 강하준',
           member_count: 24
         }
       ];
@@ -206,113 +202,8 @@ export async function ensureFirebaseSeeded() {
 
       console.log('✅ Firestore Seed Data Completed Successfully!');
     }
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('dfmc_seeded_v1', 'true');
-    }
     isInitialized = true;
   } catch (err) {
     console.warn('Firestore seeding check:', err);
   }
-}
-
-// 2. Storage Upload with Auto Compression & Bulletproof Fallbacks
-export async function uploadImageFile(file: File): Promise<string> {
-  let blobToUpload: Blob;
-  try {
-    // Compress with safety timeout
-    blobToUpload = await compressImage(file, 1200, 0.75);
-  } catch (err) {
-    console.warn('Image compression fallback to original file:', err);
-    blobToUpload = file;
-  }
-
-  // Try Firebase Storage with 5s timeout, otherwise fallback to DataURL
-  try {
-    const fileName = `uploads/${Date.now()}_${Math.random().toString(36).substring(2, 8)}.jpg`;
-    const storageRef = ref(storage, fileName);
-
-    const uploadPromise = uploadBytes(storageRef, blobToUpload).then(() => getDownloadURL(storageRef));
-    const timeoutPromise = new Promise<string>((_, reject) =>
-      setTimeout(() => reject(new Error('Storage upload timeout')), 5000)
-    );
-
-    return await Promise.race([uploadPromise, timeoutPromise]);
-  } catch (storageErr) {
-    console.warn('Storage upload failed or timed out, using local DataURL fallback:', storageErr);
-    return new Promise<string>((resolve) => {
-      const reader = new FileReader();
-      reader.onload = (e) => resolve((e.target?.result as string) || '');
-      reader.onerror = () => {
-        // Last resort: object URL
-        resolve(URL.createObjectURL(blobToUpload));
-      };
-      reader.readAsDataURL(blobToUpload);
-    });
-  }
-}
-
-// Image compression helper: resize + JPEG quality reduction with timeout & error protection
-function compressImage(file: File, maxDim: number, quality: number): Promise<Blob> {
-  return new Promise<Blob>((resolve) => {
-    // If not an image type, resolve immediately with original
-    if (!file.type.startsWith('image/')) {
-      return resolve(file);
-    }
-
-    const timeout = setTimeout(() => {
-      console.warn('Image compression timed out, using original file');
-      resolve(file);
-    }, 4000);
-
-    const reader = new FileReader();
-    reader.onerror = () => {
-      clearTimeout(timeout);
-      resolve(file);
-    };
-    reader.onload = (e) => {
-      const img = new Image();
-      img.onerror = () => {
-        clearTimeout(timeout);
-        resolve(file);
-      };
-      img.onload = () => {
-        try {
-          const canvas = document.createElement('canvas');
-          let width = img.width;
-          let height = img.height;
-          if (width > maxDim || height > maxDim) {
-            if (width > height) {
-              height = Math.round((height * maxDim) / width);
-              width = maxDim;
-            } else {
-              width = Math.round((width * maxDim) / height);
-              height = maxDim;
-            }
-          }
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          if (!ctx) {
-            clearTimeout(timeout);
-            return resolve(file);
-          }
-          ctx.drawImage(img, 0, 0, width, height);
-          canvas.toBlob(
-            (blob) => {
-              clearTimeout(timeout);
-              resolve(blob || file);
-            },
-            'image/jpeg',
-            quality
-          );
-        } catch (canvasErr) {
-          console.warn('Canvas compression error:', canvasErr);
-          clearTimeout(timeout);
-          resolve(file);
-        }
-      };
-      img.src = (e.target?.result as string) || '';
-    };
-    reader.readAsDataURL(file);
-  });
 }

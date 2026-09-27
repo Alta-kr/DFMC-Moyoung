@@ -1,3 +1,7 @@
+## 2026-09-28 모영 총무 인계 안건 연결
+
+- 총무가 신임/해임 안건을 발의하고 다른 총무가 동의하면 반영된다(현직 총무 min(2, 인원)명). 1~3명 유지, 게스트 거부. 상세는 docs/MAINTENANCE_2026_09_27.md.
+
 ## 2026-09-27 홈·피드 및 관리자 멤버십 구현
 
 로컬 auth-preview에서 로그인 → 홈 요약 → 모임 피드 10개씩 조회를 연결했다. setClubMembership Callable Function으로 관리자 가입/해제·총무 지정과 3명 제한, 변경 기록, 홈 요약 동시 갱신을 구현했다. 상세 실행 방법·변경 파일 책임·남은 범위는 [구현 안내](docs/FEED_AND_MEMBERSHIP.md)를 따른다.
@@ -392,3 +396,18 @@ START_MOYOUNG_PREVIEW.cmd와 scripts/runPreview.mjs 추가. 고정된 demo 에�
 - Firebase CLI 로그인 완료 후 moyoung-abd47에 Hosting만 배포했다. release complete 및 HTTP 200, 현재 번들 일치를 확인했다.
 - 전체 빌드 통과. 기존 번들 경고 유지. Rules·Storage·Functions·인덱스·운영 데이터 이전은 이번 배포 범위에 포함되지 않았다.
 - 신규 이메일 인증/통합 피드는 로컬 검증 단계이며 기존 운영 화면과 통합되지 않았다. [누적 상태·파일·남은 작업](docs/README.md).
+
+
+## 2026-09-27 로그인 보류 상태의 기능 정비 (미배포)
+
+사진 업로드 제거, 동시 참석/투표 트랜잭션, 고유 ID 총무 관리, 한국 시간 날짜 정규화, 계정별 캐시, 기존 화면의 준비된 홈/10개 피드 조회 연결, 관리자 서버 검증, 홈 누락 이벤트 후처리를 추가했다. 자동 샘플 생성은 로컬 ui-preview로 제한했다. 운영 Firestore 공개 규칙을 확인했으나 인증 전환 전이므로 운영 Rules 교체는 하지 않았다. 구현/검증/미완료 범위는 [정비 기록](docs/MAINTENANCE_2026_09_27.md)에 구분했다.
+
+## 2026-09-27 후속 — 이전 사전 검사 강화
+
+`migrationPreview.js`에 기존 회원 고유 ID/문서 키 중복, 누락된 uid 연결, 이름뿐인 총무·게스트·3명 초과 검사를 추가했다. 원본 모임 ID와 명시적 매핑의 일치, 일정 표시/숫자 시각 일치, 종료 역전도 검사한다. 기존 JSON CLI를 확장했으며 운영 접근이나 쓰기는 하지 않는다. 순수 테스트 6개, 확장 예시 CLI, 전체 빌드 통과. 형식/제약은 [이전 미리보기](docs/MIGRATION_PREVIEW.md)를 따른다.
+
+## 2026-09-28 기존 UI 검증 및 캐시 보완
+
+기존 화면에서 로컬 demo 데이터로 참석/취소, 투표 변경/실패 복구, 계정 전환, 총무 3명 제한 및 저장 유지 동작을 검증했다. 홈/모영의 참석·투표 처리 완료 상태를 계정별 캐시에 갱신하고, 에뮬레이터 재시작 시 로컬 초기화가 누락되는 문제와 체험 총무의 ID/표시 이름 불일치를 수정했다. 총무 해임 툴팁은 이름과 선택 동작에 맞췄다.
+
+변경 파일: client/src/pages/LobbyPage.tsx, ClubDetailPage.tsx, HeadAdminPage.tsx, client/src/firebase/firebaseService.ts, functions/scripts/prepareUiRoles.mjs, docs/MAINTENANCE_2026_09_27.md, FULL_CHANGELOG.md. 전체 빌드 통과. 운영 데이터 수정 및 배포 없음. 상세 제한은 정비 문서의 2026-09-28 기록 참조.

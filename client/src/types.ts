@@ -20,6 +20,7 @@ export interface Club {
   icon: string;
   description: string;
   manager_names: string;
+  manager_ids?: string[];
   member_count?: number;
   view_count?: number;
   created_at?: string;
@@ -220,6 +221,8 @@ export interface ClubPhotoItem {
 }
 
 export interface ClubDetailData {
+  paginated?: boolean;
+  nextCursor?: string | null;
   club: Club;
   isManager: boolean;
   polls: ClubPollItem[];

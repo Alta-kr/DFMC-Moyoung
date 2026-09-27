@@ -28,7 +28,7 @@
 | 관리자 | 브라우저에서 관리 데이터 직접 변경 | Cloud Functions 검증 |
 | 식별자 | username users, clubs/club_*, 숫자 id | 기존 ID 매핑을 보존하는 uid 모델 |
 
-근거: client/src/firebase/config.ts, apiInterceptor.ts, client/src/pages/ClubDetailPage.tsx, firestore.rules, firebase.json. 실제 배포된 Rules는 조회하지 않았다. 현재 ‘서버리스’가 서버 권한 검증 완료를 뜻하지 않는다.
+근거: client/src/firebase/config.ts, apiInterceptor.ts, client/src/pages/ClubDetailPage.tsx, firestore.rules, firebase.json. 초기 분석 후 실제 배포 Firestore 공개 규칙을 확인했다. 최신 상태는 MAINTENANCE_2026_09_27.md를 따른다. 현재 ‘서버리스’가 서버 권한 검증 완료를 뜻하지 않는다.
 
 ## 홈과 통합 feed
 

@@ -1,3 +1,4 @@
+import { parseMoyoungDate, scheduleTimes } from './dateTime.js';
 import { createHash } from 'node:crypto';
 import { FieldPath } from 'firebase-admin/firestore';
 
@@ -5,16 +6,7 @@ const kinds = { club_posts: 'post', club_schedules: 'schedule', club_polls: 'pol
 const yes = value => value === true || value === 1;
 const alias = (data, camel, snake) => data[camel] ?? data[snake];
 const hash = value => createHash('sha256').update(value).digest('hex');
-function millis(value) {
-  if (typeof value === 'number' && Number.isFinite(value)) return value;
-  if (value?.toMillis) return value.toMillis();
-  if (typeof value !== 'string') return null;
-  // Date-only values are Korean local dates. Ambiguous local date-times are rejected.
-  const explicit = /^\d{4}-\d{2}-\d{2}$/.test(value) ? value + 'T00:00:00+09:00' : value;
-  if (!/(Z|[+-]\d{2}:\d{2})$/.test(explicit)) return null;
-  const parsed = Date.parse(explicit);
-  return Number.isFinite(parsed) ? parsed : null;
-}
+const millis = parseMoyoungDate;
 export function normalizeSource(collection, id, data, now = Date.now()) {
   const kind = kinds[collection];
   if (!kind) throw new Error('Unsupported feed source');
@@ -26,9 +18,10 @@ export function normalizeSource(collection, id, data, now = Date.now()) {
   if (sortAt === null) return null;
   const type = kind === 'post' && data.type === 'notice' && yes(alias(data, 'isPinned', 'is_pinned')) ? 'notice' : kind;
   const explicitDeadline = alias(data, 'closesAtMs', 'closes_at_ms');
-  const eventAt = millis(alias(data, 'eventDate', 'event_date'));
+  const timing = scheduleTimes(data);
+  const eventAt = timing.startsAtMs;
   const closesAtMs = kind === 'post' ? null : explicitDeadline !== undefined ? millis(explicitDeadline)
-    : kind === 'schedule' ? (eventAt === null ? null : eventAt + 86400000) : millis(alias(data, 'endDate', 'end_date'));
+    : kind === 'schedule' ? timing.endsAtMs : parseMoyoungDate(alias(data, 'endDate', 'end_date'), true);
   const options = kind === 'poll' && Array.isArray(data.options) ? data.options.map(option => {
     if (typeof option === 'string') return { id: 'o_' + hash(option).slice(0, 32), label: option };
     return option && typeof option.id === 'string' && /^[a-zA-Z0-9_-]{1,128}$/.test(option.id)
@@ -60,7 +53,7 @@ export async function reconcileFeedSource(db, collection, id, now = Date.now()) 
     let next = normalizeSource(collection, id, source.data(), now);
     if (next) {
       const club = await tx.get(db.doc('clubs/' + next.clubId));
-      if (club.data()?.membershipSchemaVersion !== 1) next = null;
+      if (club.data()?.membershipSchemaVersion !== 1 && club.data()?.feedProjectionVersion !== 1) next = null;
     }
     const oldPath = previous?.path ?? null;
     const sameClub = next && oldPath?.startsWith('clubs/' + next.clubId + '/feed/');

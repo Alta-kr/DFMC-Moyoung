@@ -1,3 +1,8 @@
+import { readLegacyFeedPage } from './legacyFeedReader';
+import { setLegacyManagers, proposeHandover, agreeHandover, pendingHandovers } from './legacyManagers';
+import { samePerson, isClubManager } from './identity';
+import { saveLegacyParticipation } from './legacyParticipation';
+import { parseMoyoungDate, scheduleTimes } from '../../../functions/src/dateTime.js';
 import {
   collection,
   doc,
@@ -9,11 +14,11 @@ import {
   deleteDoc,
   query,
   where,
-  orderBy
+  orderBy, runTransaction
 } from 'firebase/firestore';
 import emailjs from '@emailjs/browser';
 import { db } from './config';
-import { ensureFirebaseSeeded, uploadImageFile } from './firebaseService';
+import { ensureFirebaseSeeded } from './firebaseService';
 
 // Helper to make JSON Response
 function makeResponse(data: any, status = 200) {
@@ -158,9 +163,10 @@ export function setupApiInterceptor() {
       return originalFetch(input, init);
     }
 
-    await ensureFirebaseSeeded();
+    if (import.meta.env.DEV && import.meta.env.MODE === 'ui-preview') await ensureFirebaseSeeded();
 
-    const pathname = url.startsWith('http') ? new URL(url).pathname : url;
+    const requestUrl = new URL(url, window.location.origin);
+    const pathname = requestUrl.pathname;
     const method = (init?.method || 'GET').toUpperCase();
     let body: any = null;
     if (init?.body && typeof init.body === 'string') {
@@ -173,6 +179,32 @@ export function setupApiInterceptor() {
     const currentUsername = getCurrentUserFromToken(authHeader);
 
     try {
+      // Legacy UX guard only; Firebase Auth + deployed Rules remain the security boundary.
+      const actorDoc = currentUsername ? await getDoc(doc(db, 'users', currentUsername)) : null;
+      const actor = actorDoc?.exists() ? actorDoc.data() : null;
+      if (pathname.startsWith('/api/server-admin/') && actor?.role !== 'server_admin') return makeResponse({ error: '서버관리자 권한이 필요합니다.' }, 403);
+      if (pathname.startsWith('/api/head-admin/')) {
+        const mediaPath = /\/(popups?|notices?|welcome|targeted-welcomes)/.test(pathname);
+        if (!actor || !(['server_admin', 'head_admin'].includes(actor.role) || (mediaPath && actor.role === 'media_admin'))) return makeResponse({ error: '관리자 권한이 필요합니다.' }, 403);
+      }
+      const guardedClub = pathname.match(/^\/api\/clubs\/(\d+)(.*)$/);
+      if (guardedClub) {
+        const part = guardedClub[2];
+        if (!actor) return makeResponse({ error: '로그인이 필요합니다.' }, 401);
+        if ((actor.role === 'guest' || actor.is_guest) && !(/^\/schedules\/\d+\/attend$/.test(part) && method === 'POST')) return makeResponse({ error: '게스트는 홈 일정 참석만 가능합니다.' }, 403);
+        const item=part.match(/^\/(posts|polls|schedules)\/(\d+)/);
+        if(item && method!=='GET') {
+          const source={posts:['club_posts','post_'],polls:['club_polls','poll_'],schedules:['club_schedules','sched_']}[item[1]]!;
+          const target=await getDoc(doc(db,source[0],source[1]+item[2]));
+          if(!target.exists() || Number(target.data().club_id ?? target.data().clubId)!==Number(guardedClub[1])) return makeResponse({error:'다른 모임의 항목입니다.'},403);
+          if(item[1]==='posts' && /^\/posts\/\d+$/.test(part) && !samePerson(target.data(),actor) && !['media_admin','head_admin','server_admin'].includes(actor.role)) return makeResponse({error:'게시글 변경 권한이 없습니다.'},403);
+        }
+        const managerAction = part === '/info' || part.startsWith('/handover') || part === '/schedules' || part === '/polls' || /\/(pin|close)$/.test(part) || (/^\/(schedules|polls)\/\d+$/.test(part) && method !== 'GET');
+        if (method !== 'GET' && managerAction) {
+          const club = await getDoc(doc(db, 'clubs', guardedClub[1]));
+          if (!club.exists() || !isClubManager(club.data(), actor)) return makeResponse({ error: '모영 총무 권한이 필요합니다.' }, 403);
+        }
+      }
       // ----------------------------------------------------
       // AUTH ROUTES
       // ----------------------------------------------------
@@ -232,7 +264,7 @@ export function setupApiInterceptor() {
           } catch (err: any) {
             console.error('EmailJS send error:', err);
             const detail = err?.text || err?.message || '연동 확인 필요';
-            hintMessage = `메일 발송 안내: ${detail} (비상 마스터 코드: 84701)`;
+            hintMessage = '메일 발송에 실패했습니다. 잠시 후 다시 시도해주세요.';
           }
 
           return makeResponse({
@@ -264,10 +296,6 @@ export function setupApiInterceptor() {
           console.warn('2FA verification check warning:', e);
         }
 
-        // Emergency backup master codes
-        if (code === '84701' || code === '8470') {
-          isValid = true;
-        }
 
         if (isValid) {
           const userSnap = await getDoc(doc(db, 'users', 'dfmc8470'));
@@ -323,11 +351,7 @@ export function setupApiInterceptor() {
       }
 
       if (pathname === '/api/auth/quick-switch') {
-        const { targetUsername } = body || {};
-        const userSnap = await getDoc(doc(db, 'users', targetUsername));
-        if (!userSnap.exists()) return makeResponse({ error: '사용자를 찾을 수 없습니다.' }, 404);
-        const user = userSnap.data();
-        return makeResponse({ token: `dfmc_token_${user.username}`, user, message: `${user.name} 계정으로 전환되었습니다.` });
+        return makeResponse({ error: '계정 전환 기능이 종료되었습니다.' }, 410);
       }
 
       if (pathname === '/api/auth/guest-login') {
@@ -370,6 +394,18 @@ export function setupApiInterceptor() {
       // LOBBY ROUTES
       // ----------------------------------------------------
       if (pathname === '/api/lobby/data') {
+        const summary=await getDoc(doc(db,'_readModels','lobby'));
+        if(summary.data()?.version===1) {
+          const result=summary.data()!;
+          const profile=currentUsername?await getDoc(doc(db,'users',currentUsername)):null;
+          const user=profile?.data();
+          const schedules=await Promise.all((result.schedules || []).map(async (schedule:any)=>{
+            if(!user) return schedule;
+            const source=await getDoc(doc(db,'club_schedules',schedule.sourceId));
+            return {...schedule,is_attending:(source.data()?.attendees || []).some((entry:any)=>samePerson(entry,user))};
+          }));
+          return makeResponse({...result,schedules,highlightedSchedules:schedules,welcomeMessage:result.welcome});
+        }
         // 병렬로 모든 필요한 컬렉션을 한 번에 조회하여 Firestore 네트워크 지연 1회 왕복으로 단축
         const [popSnap, notSnap, clubSnap, schedSnap, uSnap, cellsSnap, welcomeSnap] = await Promise.all([
           getDocs(collection(db, 'popups')),
@@ -402,17 +438,7 @@ export function setupApiInterceptor() {
         // 당일 일정도 포함하기 위해 최근 12시간 전까지는 유효 범위로 인정
         const threshold = now - 12 * 60 * 60 * 1000;
 
-        const parseSchedTimestamp = (dateStr?: string): number => {
-          if (!dateStr) return NaN;
-          let t = new Date(dateStr).getTime();
-          if (isNaN(t)) {
-            const match = dateStr.match(/(\d{4})[-./](\d{1,2})[-./](\d{1,2})/);
-            if (match) {
-              t = new Date(`${match[1]}-${match[2].padStart(2, '0')}-${match[3].padStart(2, '0')}`).getTime();
-            }
-          }
-          return t;
-        };
+        const parseSchedTimestamp = (dateStr?: string): number => parseMoyoungDate(dateStr) ?? NaN;
 
         // 모영별(모영 이름 기준)로 일정 그룹화하여 각 모영당 가장 임박한 1개만 선정
         const schedulesByClub = new Map<string, any[]>();
@@ -423,17 +449,10 @@ export function setupApiInterceptor() {
 
           // 해당 일정이 속한 모영 찾기
           let cl = clubs.find(c => Number(c.id) === Number(s.club_id) || String(c.id) === String(s.club_id));
-          if (!cl && s.title) {
-            // 과거 시드 데이터나 ID 불일치 대응: 제목 키워드로 모영 매핑
-            if (s.title.includes('풋살')) cl = clubs.find(c => c.name.includes('풋살'));
-            else if (s.title.includes('배드민턴')) cl = clubs.find(c => c.name.includes('배드민턴'));
-            else if (s.title.includes('볼링')) cl = clubs.find(c => c.name.includes('볼링'));
-            else if (s.title.includes('독서')) cl = clubs.find(c => c.name.includes('독서'));
-          }
 
           if (!cl) return; // 모영이 존재하지 않는 고아 일정은 홈 화면에 표시하지 않음
 
-          const clubKey = cl.name.trim();
+          const clubKey = String(cl.id);
           if (!schedulesByClub.has(clubKey)) schedulesByClub.set(clubKey, []);
           schedulesByClub.get(clubKey)!.push({
             ...s,
@@ -457,11 +476,7 @@ export function setupApiInterceptor() {
           list.sort((a, b) => a.timestamp - b.timestamp);
           const earliest = list[0];
           const attendees = Array.isArray(earliest.attendees) ? earliest.attendees : [];
-          const isAttending = attendees.some((a: any) =>
-            (a.user_id !== undefined && (a.user_id === currentUser.id || String(a.user_id) === String(currentUser.id))) ||
-            (a.userId !== undefined && (a.userId === currentUser.id || String(a.userId) === String(currentUser.id))) ||
-            (currentUser.name && (a.user_name === currentUser.name || a.userName === currentUser.name))
-          );
+          const isAttending = attendees.some((a: any) => samePerson(a, currentUser));
           imminentSchedules.push({
             id: earliest.id,
             club_id: earliest.club_id,
@@ -525,18 +540,7 @@ export function setupApiInterceptor() {
       // IMAGE UPLOAD ROUTE
       // ----------------------------------------------------
       if (pathname === '/api/clubs/upload-image') {
-        // init.body is FormData
-        const formData = init?.body as FormData;
-        const file = formData.get('image') as File;
-        if (!file) return makeResponse({ error: '이미지 파일이 전달되지 않았습니다.' }, 400);
-
-        try {
-          const imageUrl = await uploadImageFile(file);
-          return makeResponse({ imageUrl, url: imageUrl });
-        } catch (err: any) {
-          console.error('Image upload failed:', err);
-          return makeResponse({ error: err.message || '이미지 업로드에 실패했습니다.' }, 500);
-        }
+        return makeResponse({ error: '사진 업로드 기능이 종료되었습니다.' }, 410);
       }
 
       // ----------------------------------------------------
@@ -547,6 +551,12 @@ export function setupApiInterceptor() {
         const clubId = Number(clubMatch[1]);
         const subPath = clubMatch[2];
 
+        if(subPath==='/members' && method==='GET') {
+          const club=await getDoc(doc(db,'clubs',String(clubId)));
+          if(!club.exists() || !isClubManager(club.data(),actor)) return makeResponse({error:'총무 권한이 필요합니다.'},403);
+          const users=await getDocs(collection(db,'users'));
+          return makeResponse({members:users.docs.map(d=>d.data()).filter(u=>u.role!=='guest'&&!u.is_guest).map(u=>({id:u.id,name:u.name,cell_name:u.cell_name??''})).sort((a,b)=>a.name.localeCompare(b.name,'ko'))});
+        }
         // GET /api/clubs/:id
         if (!subPath && method === 'GET') {
           const clubSnap = await getDoc(doc(db, 'clubs', String(clubId)));
@@ -556,14 +566,14 @@ export function setupApiInterceptor() {
           // Current User details
           const uSnap = await getDoc(doc(db, 'users', currentUsername || ''));
           const currentUser = uSnap.data() || { id: 999, name: '', role: 'member' };
-          const managers = (club.manager_names || '').split(',').map((s: string) => s.trim()).filter(Boolean);
-          const isManager = managers.includes(currentUser.name) || currentUser.role === 'head_admin' || currentUser.role === 'server_admin';
+          const isManager = isClubManager(club, currentUser);
 
           // Use where() queries to only fetch data for THIS club
           const clubIdFilter = where('club_id', '==', clubId);
-          const [commSnap, reactSnap, postsSnap, pollsSnap, schedSnap, chatSnap] = await Promise.all([
+          const page = club.feedReadModelVersion === 1 ? await readLegacyFeedPage(db,clubId,requestUrl.searchParams.get('cursor')) : null;
+          const [commSnap, reactSnap, postsSnap, pollsSnap, schedSnap, chatSnap] = page ? [page.commSnap,page.reactSnap,page.postsSnap,page.pollsSnap,page.schedSnap,page.chatSnap] : await Promise.all([
             getDocs(query(collection(db, 'club_comments'), clubIdFilter)),
-            getDocs(collection(db, 'club_reactions')),  // fallback: old reactions may lack club_id
+            getDocs(query(collection(db, 'club_reactions'),clubIdFilter)),
             getDocs(query(collection(db, 'club_posts'), clubIdFilter)),
             getDocs(query(collection(db, 'club_polls'), clubIdFilter)),
             getDocs(query(collection(db, 'club_schedules'), clubIdFilter)),
@@ -640,16 +650,9 @@ export function setupApiInterceptor() {
                   optionCounts[opt]++;
                 }
               });
-              const myVote = votes.find((v: any) =>
-                (currentUser.id !== undefined && (v.user_id === currentUser.id || v.userId === currentUser.id)) ||
-                (currentUser.name && (v.user_name === currentUser.name || v.userName === currentUser.name)) ||
-                (currentUsername && (v.user_id === currentUsername || v.username === currentUsername))
-              )?.selected_option || votes.find((v: any) =>
-                (currentUser.id !== undefined && (v.user_id === currentUser.id || v.userId === currentUser.id)) ||
-                (currentUser.name && (v.user_name === currentUser.name || v.userName === currentUser.name)) ||
-                (currentUsername && (v.user_id === currentUsername || v.username === currentUsername))
-              )?.selectedOption || null;
-              const isExpired = p.end_date ? new Date(p.end_date).getTime() < Date.now() : false;
+              const selectedVote = votes.find((v: any) => samePerson(v, currentUser));
+              const myVote = selectedVote?.selected_option ?? selectedVote?.selectedOption ?? null;
+              const isExpired = (parseMoyoungDate(p.closesAtMs ?? p.end_date, true) ?? 0) <= Date.now();
               const pollComments = (commentsByPoll.get(Number(p.id)) || [])
                 .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
               return {
@@ -671,12 +674,7 @@ export function setupApiInterceptor() {
                 .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
               const rKey = `schedule_${s.id}`;
               const rEntry = reactionsByTarget.get(rKey);
-              const isAttending = (s.attendees || []).some((a: any) => 
-                (a.user_id !== undefined && a.user_id === currentUser.id) ||
-                (a.userId !== undefined && a.userId === currentUser.id) ||
-                (a.userName && a.userName === currentUser.name) ||
-                (a.user_name && a.user_name === currentUser.name)
-              );
+              const isAttending = (s.attendees || []).some((a: any) => samePerson(a, currentUser));
               return {
                 ...s,
                 comments: schedComments,
@@ -701,19 +699,14 @@ export function setupApiInterceptor() {
             delete safeClub.view_count;
           }
 
-          let churchMembers: any[] = [];
-          if (isManager) {
-            const uSnap = await getDocs(collection(db, 'users'));
-            churchMembers = uSnap.docs
-              .map(d => d.data())
-              .filter(u => u.role !== 'guest' && !u.is_guest)
-              .map(u => ({ id: u.id, name: u.name, cell_name: u.cell_name }));
-            churchMembers.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ko'));
-          }
+          const churchMembers: any[] = [];
+          const handoverVotes = isManager ? await pendingHandovers(db, clubId, currentUser) : [];
 
           return makeResponse({
+            paginated: !!page, nextCursor: page?.nextCursor ?? null,
             club: safeClub,
             isManager,
+            handoverVotes,
             members: [],
             churchMembers,
             posts,
@@ -788,19 +781,21 @@ export function setupApiInterceptor() {
         // POST /api/clubs/:id/posts (Create Post)
         if (subPath === '/posts' && method === 'POST') {
           const { content, imageUrl, image_url, is_pinned } = body || {};
-          const finalImg = imageUrl || image_url || '';
+          if (imageUrl || image_url) return makeResponse({ error: '새 사진은 첨부할 수 없습니다.' }, 400);
+          const finalImg = '';
           const userSnap = await getDoc(doc(db, 'users', currentUsername || 'member1'));
           const user = userSnap.data() || { name: '성도', cell_name: '둔산제일교회', id: 999 };
 
           const newPost = {
+            feedSchemaVersion: 1, feedClubId: String(clubId),
             id: Date.now(),
             club_id: clubId,
             user_id: user.id || 999,
-            user_name: user.name,
-            user_cell: user.cell_name,
+            user_name: user.name ?? '회원',
+            user_cell: user.cell_name ?? '',
             content: content || '',
             image_url: finalImg,
-            is_pinned: is_pinned ? 1 : 0,
+            is_pinned: is_pinned && isClubManager((await getDoc(doc(db,'clubs',String(clubId)))).data(),user) ? 1 : 0,
             created_at: new Date().toISOString()
           };
 
@@ -825,7 +820,10 @@ export function setupApiInterceptor() {
         if (editPostMatch && method === 'PUT') {
           const pId = editPostMatch[1];
           const { content, imageUrl, image_url } = body || {};
-          const finalImg = imageUrl !== undefined ? imageUrl : (image_url !== undefined ? image_url : '');
+          const oldPost = await getDoc(doc(db, 'club_posts', 'post_' + pId));
+          if (!oldPost.exists()) return makeResponse({ error: '글을 찾을 수 없습니다.' }, 404);
+          const finalImg = imageUrl ?? image_url ?? oldPost.data().image_url ?? '';
+          if (finalImg && finalImg !== oldPost.data().image_url) return makeResponse({ error: '새 사진은 첨부할 수 없습니다.' }, 400);
           await updateDoc(doc(db, 'club_posts', `post_${pId}`), { content, image_url: finalImg });
           return makeResponse({ message: '게시글이 수정되었습니다.' });
         }
@@ -876,8 +874,8 @@ export function setupApiInterceptor() {
             schedule_id: schedule_id || null,
             parent_comment_id: parent_comment_id || null,
             user_id: user.id || 999,
-            user_name: user.name,
-            user_cell: user.cell_name,
+            user_name: user.name ?? '회원',
+            user_cell: user.cell_name ?? '',
             content: content || '',
             created_at: new Date().toISOString()
           };
@@ -901,8 +899,8 @@ export function setupApiInterceptor() {
             schedule_id: sId,
             parent_comment_id: parent_comment_id || null,
             user_id: user.id || 999,
-            user_name: user.name,
-            user_cell: user.cell_name,
+            user_name: user.name ?? '회원',
+            user_cell: user.cell_name ?? '',
             content: content || '',
             created_at: new Date().toISOString()
           };
@@ -927,8 +925,8 @@ export function setupApiInterceptor() {
             poll_id: pollId,
             parent_comment_id: parent_comment_id || null,
             user_id: user.id || 999,
-            user_name: user.name,
-            user_cell: user.cell_name,
+            user_name: user.name ?? '회원',
+            user_cell: user.cell_name ?? '',
             content: content || '',
             created_at: new Date().toISOString()
           };
@@ -941,13 +939,17 @@ export function setupApiInterceptor() {
         const delCommMatch = subPath.match(/^(?:\/(?:posts|schedules|polls)\/\d+)?\/comments\/(\d+)$/);
         if (delCommMatch && method === 'DELETE') {
           const cId = delCommMatch[1];
-          await deleteDoc(doc(db, 'club_comments', `comm_${cId}`));
+          const comment=await getDoc(doc(db,'club_comments',`comm_${cId}`));
+          if(!comment.exists() || Number(comment.data().club_id)!==clubId || (!samePerson(comment.data(),actor) && !['media_admin','head_admin','server_admin'].includes(actor?.role))) return makeResponse({error:'댓글 삭제 권한이 없습니다.'},403);
+          await deleteDoc(comment.ref);
           return makeResponse({ message: '댓글이 삭제되었습니다.' });
         }
 
         // POST /api/clubs/:id/polls (Create Poll)
         if (subPath === '/polls' && method === 'POST') {
-          const { title, description, options, end_date } = body || {};
+          const {title,description,options}=body || {};
+          const end_date=body?.end_date ?? body?.endDate;
+          if(typeof title!=='string' || !title.trim() || !Array.isArray(options) || options.length<2 || options.some((option:any)=>typeof option!=='string'||!option.trim()) || new Set(options).size!==options.length) return makeResponse({error:'투표 제목과 서로 다른 선택지를 입력해주세요.'},400);
           let user: any = { name: '총무', id: 1 };
           if (currentUsername) {
             const userSnap = await getDoc(doc(db, 'users', currentUsername));
@@ -958,7 +960,11 @@ export function setupApiInterceptor() {
           const userId = user.id ?? user.username ?? currentUsername ?? 1;
           const userName = user.name ?? currentUsername ?? '총무';
 
+          const closesAtMs = parseMoyoungDate(end_date, true);
+          if (closesAtMs === null || closesAtMs <= Date.now()) return makeResponse({ error: '투표 마감 시각을 확인해주세요.' }, 400);
           const newPoll = {
+            feedSchemaVersion: 1, feedClubId: String(clubId),
+            closesAtMs,
             id: Date.now(),
             club_id: clubId,
             title: title || '',
@@ -991,7 +997,7 @@ export function setupApiInterceptor() {
 
         // POST /api/clubs/:id/polls/:pollId/close
         const pollCloseMatch = subPath.match(/^\/polls\/(\d+)\/close$/);
-        if (pollCloseMatch && method === 'POST') {
+        if (pollCloseMatch && ['POST','PUT'].includes(method)) {
           const pollId = pollCloseMatch[1];
           await updateDoc(doc(db, 'club_polls', `poll_${pollId}`), { is_closed: 1, is_pinned: 0 });
           return makeResponse({ message: '투표가 성공적으로 마감되었습니다.' });
@@ -1000,62 +1006,8 @@ export function setupApiInterceptor() {
         // POST /api/clubs/:id/polls/:pollId/vote
         const pollVoteMatch = subPath.match(/^\/polls\/(\d+)\/vote$/);
         if (pollVoteMatch && method === 'POST') {
-          const pollId = pollVoteMatch[1];
-          const selectedOption = body?.selected_option ?? body?.selectedOption ?? body?.option;
-          if (!selectedOption) {
-            return makeResponse({ error: '선택된 투표 항목이 없습니다.' }, 400);
-          }
-
-          let user: any = { name: '성도', id: 1 };
-          if (currentUsername) {
-            const userSnap = await getDoc(doc(db, 'users', currentUsername));
-            if (userSnap.exists()) {
-              user = userSnap.data();
-            }
-          }
-          const userId = user.id ?? user.username ?? currentUsername ?? 1;
-          const userName = user.name ?? currentUsername ?? '성도';
-
-          const pSnap = await getDoc(doc(db, 'club_polls', `poll_${pollId}`));
-          if (pSnap.exists()) {
-            const pData = pSnap.data();
-            if (pData.is_closed) {
-              return makeResponse({ error: '이미 마감된 투표입니다.' }, 400);
-            }
-
-            // 이전 투표 내역 필터링 (userId 또는 userName으로 매칭)
-            const rawVotes = Array.isArray(pData.votes) ? pData.votes : [];
-            const filteredVotes = rawVotes.filter((v: any) => {
-              if (!v) return false;
-              if (v.user_id !== undefined && String(v.user_id) === String(userId)) return false;
-              if (v.userId !== undefined && String(v.userId) === String(userId)) return false;
-              if (userName && v.user_name && String(v.user_name) === String(userName)) return false;
-              if (userName && v.userName && String(v.userName) === String(userName)) return false;
-              return true;
-            });
-
-            // 새 투표 추가 (undefined 완전 배제)
-            filteredVotes.push({
-              user_id: userId,
-              user_name: userName,
-              selected_option: String(selectedOption),
-              voted_at: new Date().toISOString()
-            });
-
-            // Firestore updateDoc 안전 처리 (undefined 필드 제거)
-            const cleanVotes = filteredVotes.map((v: any) => {
-              const cleanObj: Record<string, any> = {};
-              for (const [key, value] of Object.entries(v)) {
-                if (value !== undefined) cleanObj[key] = value;
-              }
-              return cleanObj;
-            });
-
-            await updateDoc(doc(db, 'club_polls', `poll_${pollId}`), { votes: cleanVotes });
-            return makeResponse({ message: '투표가 반영되었습니다.' });
-          } else {
-            return makeResponse({ error: '투표를 찾을 수 없습니다.' }, 404);
-          }
+          if (!currentUsername) return makeResponse({ error: '로그인이 필요합니다.' }, 401);
+          return makeResponse(await saveLegacyParticipation(db, 'club_polls', 'poll_' + pollVoteMatch[1], clubId, currentUsername, body?.selected_option ?? body?.selectedOption ?? body?.option));
         }
 
         // DELETE /api/clubs/:id/polls/:pollId
@@ -1068,11 +1020,18 @@ export function setupApiInterceptor() {
 
         // POST /api/clubs/:id/schedules (Create Schedule)
         if (subPath === '/schedules' && method === 'POST') {
-          const { title, event_date, location, fee_info } = body || {};
+          const {title,location}=body || {};
+          const event_date=body?.event_date ?? body?.eventDate;
+          const fee_info=body?.fee_info ?? body?.feeInfo;
+          if(typeof title!=='string'||!title.trim()) return makeResponse({error:'일정 제목을 입력해주세요.'},400);
           const userSnap = await getDoc(doc(db, 'users', currentUsername || 'member1'));
           const user = userSnap.data() || { name: '총무', id: 1 };
 
+          const times = scheduleTimes({ ...body, event_date });
+          if (times.startsAtMs === null || times.endsAtMs === null || times.endsAtMs <= times.startsAtMs) return makeResponse({ error: '일정의 시작·종료 시각을 확인해주세요.' }, 400);
           const newSched = {
+            feedSchemaVersion: 1, feedClubId: String(clubId),
+            ...times,
             id: Date.now(),
             club_id: clubId,
             title,
@@ -1080,10 +1039,10 @@ export function setupApiInterceptor() {
             location: location || '미정',
             fee_info: fee_info || '무료',
             attendees: [
-              { user_id: user.id, user_name: user.name, user_cell: user.cell_name, joined_at: new Date().toISOString() }
+              { user_id: user.id, user_name: user.name ?? '회원', user_cell: user.cell_name ?? '', joined_at: new Date().toISOString() }
             ],
             is_pinned: 1,
-            creator_name: user.name,
+            creator_name: user.name ?? '회원',
             created_at: new Date().toISOString()
           };
 
@@ -1106,55 +1065,9 @@ export function setupApiInterceptor() {
         // POST /api/clubs/:id/schedules/:schedId/attend
         const schedAttendMatch = subPath.match(/^\/schedules\/(\d+)\/attend$/);
         if (schedAttendMatch && method === 'POST') {
-          const sId = schedAttendMatch[1];
-          const userSnap = await getDoc(doc(db, 'users', currentUsername || 'member1'));
-          const user = userSnap.data() || { name: '성도', id: 1, cell_name: '둔산제일교회' };
-
-          const sSnap = await getDoc(doc(db, 'club_schedules', `sched_${sId}`));
-          if (sSnap.exists()) {
-            const sData = sSnap.data();
-            let attendees = sData.attendees || [];
-            const isAttending = attendees.some((a: any) => 
-              (a.user_id !== undefined && a.user_id === user.id) ||
-              (a.userId !== undefined && a.userId === user.id) ||
-              (a.user_name && a.user_name === user.name) ||
-              (a.userName && a.userName === user.name)
-            );
-            
-            if (isAttending) {
-              // Cancel attendance: remove any matching attendee (cleans up any previous duplicates as well)
-              attendees = attendees.filter((a: any) => 
-                (a.user_id !== user.id) &&
-                (a.userId !== user.id) &&
-                (a.user_name !== user.name) &&
-                (a.userName !== user.name)
-              );
-            } else {
-              // Add attendance: prevent duplicates
-              const cleanAttendees = attendees.filter((a: any) => 
-                (a.user_id !== user.id) &&
-                (a.userId !== user.id) &&
-                (a.user_name !== user.name) &&
-                (a.userName !== user.name)
-              );
-              cleanAttendees.push({
-                user_id: user.id,
-                userId: user.id,
-                user_name: user.name,
-                userName: user.name,
-                user_cell: user.cell_name,
-                cellName: user.cell_name,
-                joined_at: new Date().toISOString()
-              });
-              attendees = cleanAttendees;
-            }
-            await updateDoc(doc(db, 'club_schedules', `sched_${sId}`), { attendees });
-            return makeResponse({ 
-              message: !isAttending ? '참석 신청되었습니다.' : '참석이 취소되었습니다.',
-              is_attending: !isAttending,
-              attendees
-            });
-          }
+          if (!currentUsername) return makeResponse({ error: '로그인이 필요합니다.' }, 401);
+          if (typeof body?.attending !== 'boolean') return makeResponse({ error: '참석 상태를 확인해주세요.' }, 400);
+          return makeResponse(await saveLegacyParticipation(db, 'club_schedules', 'sched_' + schedAttendMatch[1], clubId, currentUsername, body.attending));
         }
 
         // DELETE /api/clubs/:id/schedules/:schedId
@@ -1187,27 +1100,17 @@ export function setupApiInterceptor() {
 
         // POST /api/clubs/:id/handover (Manager handover)
         if (subPath === '/handover' && method === 'POST') {
-          const { targetUserId, actionType } = body || {};
-          const userSnap = await getDoc(doc(db, 'users', currentUsername || 'member1'));
-          const uSnap = await getDocs(collection(db, 'users'));
-          const target = uSnap.docs.map(d => d.data()).find(u => u.id === targetUserId);
-          if (!target) return makeResponse({ error: '대상 성도를 찾을 수 없습니다.' }, 404);
-          if (target.role === 'guest' || target.is_guest) {
-            return makeResponse({ error: '게스트는 모영 총무로 선임될 수 없습니다.' }, 400);
-          }
+          await setLegacyManagers(db,String(clubId),currentUsername || '',[body?.targetUserId],body?.actionType);
+          return makeResponse({message:'총무 명단이 업데이트되었습니다.'});
+        }
 
-          const clubSnap = await getDoc(doc(db, 'clubs', String(clubId)));
-          if (clubSnap.exists()) {
-            const club = clubSnap.data();
-            let managers = (club.manager_names || '').split(',').map((s: string) => s.trim()).filter(Boolean);
-            if (actionType === 'appoint') {
-              if (!managers.includes(target.name)) managers.push(target.name);
-            } else if (actionType === 'dismiss') {
-              managers = managers.filter((m: string) => m !== target.name);
-            }
-            await updateDoc(doc(db, 'clubs', String(clubId)), { manager_names: managers.join(', ') });
-            return makeResponse({ message: `총무 명단이 업데이트되었습니다: [${managers.join(', ')}]` });
-          }
+        // POST /api/clubs/:id/handover/propose, /handover/:voteId/agree
+        if (subPath === '/handover/propose' && method === 'POST') {
+          return makeResponse(await proposeHandover(db,String(clubId),currentUsername || '',body?.targetUserId ?? body?.target_user_id,body?.actionType ?? body?.action_type));
+        }
+        const handoverAgreeMatch = subPath.match(/^\/handover\/(\d+)\/agree$/);
+        if (handoverAgreeMatch && method === 'POST') {
+          return makeResponse(await agreeHandover(db,String(clubId),currentUsername || '',handoverAgreeMatch[1]));
         }
       }
 
@@ -1314,7 +1217,7 @@ export function setupApiInterceptor() {
           const deletePromises = notSnap.docs.map(d => deleteDoc(d.ref));
           await Promise.all(deletePromises);
 
-          await setDoc(doc(db, 'notices', `notice_${newNotice.id}`), newNotice);
+          await setDoc(doc(db, 'notices', 'current'), newNotice);
           return makeResponse({ message: '교회 전체 공지가 성공적으로 저장 및 반영되었습니다.', notice: newNotice });
         }
         if (method === 'DELETE') {
@@ -1410,6 +1313,7 @@ export function setupApiInterceptor() {
         const cSnap = await getDocs(collection(db, 'cells'));
         const target = cSnap.docs.find(d => String(d.data().id) === String(cId) || d.id === `cell_${cId}` || d.id === cId);
         if (target) {
+          if (target.data().name === '둔산제일교회') return makeResponse({ error: '기본 셀은 삭제할 수 없습니다.' }, 400);
           await deleteDoc(target.ref);
           return makeResponse({ message: '셀이 삭제되었습니다.' });
         }
@@ -1424,6 +1328,7 @@ export function setupApiInterceptor() {
         } else if (typeof cellListText === 'string') {
           cellNames = cellListText.split('\n').map((s: string) => s.trim()).filter(Boolean);
         }
+        if (!cellNames.length || new Set(cellNames).size !== cellNames.length) return makeResponse({error:'빈 목록이나 중복 셀은 저장할 수 없습니다.'},400);
         // Clean and reset cells
         const oldSnap = await getDocs(collection(db, 'cells'));
         for (const d of oldSnap.docs) {
@@ -1456,13 +1361,18 @@ export function setupApiInterceptor() {
           return makeResponse({ clubs: clubList });
         }
         if (method === 'POST') {
-          const { name, icon, description, manager_names } = body || {};
+          const { name, icon, description } = body || {};
+          const manager_ids = [...new Set((body?.manager_ids || []).map(String))] as string[];
+          if (manager_ids.length > 3) return makeResponse({error:'총무는 최대 3명입니다.'},400);
+          const selectedManagers = await Promise.all(manager_ids.map(id=>getDocs(query(collection(db,'users'),where('id','==',Number(id))))));
+          if(selectedManagers.some(s=>s.size!==1 || s.docs[0].data().role==='guest' || s.docs[0].data().is_guest)) return makeResponse({error:'총무 회원 ID를 확인해주세요.'},400);
           const newClub = {
             id: Date.now(),
             name: name || '',
             icon: icon || '⚽',
             description: description || '',
-            manager_names: manager_names || '',
+            manager_ids,
+            manager_names: selectedManagers.map(s=>s.docs[0].data().name).join(', '),
             member_count: 0,
             view_count: 0,
             created_at: new Date().toISOString()
@@ -1483,8 +1393,7 @@ export function setupApiInterceptor() {
         }
 
         if (method === 'POST' && subAction === 'managers') {
-          const { manager_names } = body || {};
-          await updateDoc(doc(db, 'clubs', String(cId)), { manager_names: manager_names || '' });
+          await setLegacyManagers(db,String(cId),currentUsername || '',body?.manager_ids ?? body?.managerIds);
           return makeResponse({ message: '총무 명단이 업데이트되었습니다.' });
         }
       }
@@ -1557,6 +1466,7 @@ export function setupApiInterceptor() {
             if (target.data().role === 'guest' || target.data().is_guest) {
               return makeResponse({ error: '게스트는 미디어 관리자로 임명될 수 없습니다.' }, 400);
             }
+            if(!['appoint','dismiss'].includes(action) || !['member','media_admin'].includes(target.data().role)) return makeResponse({error:'일반 회원 또는 미디어 관리자만 변경할 수 있습니다.'},403);
             const newRole = action === 'appoint' ? 'media_admin' : 'member';
             await updateDoc(target.ref, { role: newRole });
             const userName = target.data().name || '회원';
@@ -1623,6 +1533,7 @@ export function setupApiInterceptor() {
 
       if (pathname === '/api/server-admin/set-role') {
         const { userId, role } = body || {};
+        if (method !== 'POST' || !['member','media_admin','head_admin','server_admin'].includes(role)) return makeResponse({error:'올바른 권한을 선택해주세요.'},400);
         const uSnap = await getDocs(collection(db, 'users'));
         const target = uSnap.docs.find(d => d.data().id === userId);
         if (target) {

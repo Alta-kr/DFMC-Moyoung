@@ -1,3 +1,4 @@
+import { accountCache, cacheForAccount } from '../firebase/accountCache';
 import React, { useState, useEffect } from 'react';
 import { User, Club, Notice, ScheduleHighlight, PopupItem, CellItem, WelcomeSettings } from '../types';
 import { PopupModal } from '../components/PopupModal';
@@ -14,7 +15,7 @@ interface LobbyPageProps {
 
 const getInitialLobbyCache = () => {
   try {
-    const cached = localStorage.getItem('dfmc_lobby_cache');
+    const cached = accountCache.getItem('dfmc_lobby_cache');
     if (!cached) return null;
     return JSON.parse(cached);
   } catch {
@@ -23,6 +24,7 @@ const getInitialLobbyCache = () => {
 };
 
 export const LobbyPage: React.FC<LobbyPageProps> = ({ user, onUpdateUser, onNavigateClub, onRequireLogin, onLoginSuccess }) => {
+  const accountCache = cacheForAccount(user?.username || 'anonymous');
   const [initialCache] = useState(() => getInitialLobbyCache());
   const [notice, setNotice] = useState<Notice | null>(() => initialCache?.notice || null);
   const [schedules, setSchedules] = useState<ScheduleHighlight[]>(() => {
@@ -30,7 +32,7 @@ export const LobbyPage: React.FC<LobbyPageProps> = ({ user, onUpdateUser, onNavi
     const rawSchedules: ScheduleHighlight[] = initialCache.schedules || initialCache.highlightedSchedules || [];
     const clubMap = new Map<string, ScheduleHighlight>();
     rawSchedules.forEach((s) => {
-      const key = (s.club_name || '').trim();
+      const key = String(s.club_id);
       if (!clubMap.has(key)) clubMap.set(key, s);
     });
     return Array.from(clubMap.values());
@@ -64,8 +66,18 @@ export const LobbyPage: React.FC<LobbyPageProps> = ({ user, onUpdateUser, onNavi
     setTimeout(() => setToastMessage(null), 2500);
   };
 
+  useEffect(() => {
+    if (loadingAttendId !== null) return;
+    try {
+      const cache = cacheForAccount(user?.username || 'anonymous');
+      const previous = cache.getItem('dfmc_lobby_cache');
+      if (previous) cache.setItem('dfmc_lobby_cache', JSON.stringify({ ...JSON.parse(previous), schedules, highlightedSchedules: schedules }));
+    } catch {}
+  }, [schedules, loadingAttendId, user?.username]);
+
   const handleToggleLobbyAttend = async (sched: ScheduleHighlight) => {
-    const token = localStorage.getItem('dfmc_token');
+    if (loadingAttendId !== null) return;
+    const token = accountCache.getItem('dfmc_token');
     setLoadingAttendId(sched.id);
 
     const willAttend = !sched.is_attending;
@@ -82,7 +94,8 @@ export const LobbyPage: React.FC<LobbyPageProps> = ({ user, onUpdateUser, onNavi
     try {
       const res = await fetch(`/api/clubs/${sched.club_id}/schedules/${sched.id}/attend`, {
         method: 'POST',
-        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) }
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ attending: willAttend })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
@@ -151,8 +164,8 @@ export const LobbyPage: React.FC<LobbyPageProps> = ({ user, onUpdateUser, onNavi
       }
 
       if (data.user && data.token) {
-        localStorage.setItem('dfmc_token', data.token);
-        localStorage.setItem('dfmc_user', JSON.stringify(data.user));
+        accountCache.setItem('dfmc_token', data.token);
+        accountCache.setItem('dfmc_user', JSON.stringify(data.user));
         onLoginSuccess?.(data.user, data.token);
         setShowAuthModal(false);
 
@@ -198,8 +211,8 @@ export const LobbyPage: React.FC<LobbyPageProps> = ({ user, onUpdateUser, onNavi
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || '게스트 접속에 실패했습니다.');
 
-      localStorage.setItem('dfmc_token', data.token);
-      localStorage.setItem('dfmc_user', JSON.stringify(data.user));
+      accountCache.setItem('dfmc_token', data.token);
+      accountCache.setItem('dfmc_user', JSON.stringify(data.user));
       onLoginSuccess?.(data.user, data.token);
       setShowAuthModal(false);
 
@@ -247,9 +260,9 @@ export const LobbyPage: React.FC<LobbyPageProps> = ({ user, onUpdateUser, onNavi
 
   // Fetch lobby data
   useEffect(() => {
-    const token = localStorage.getItem('dfmc_token');
+    const token = accountCache.getItem('dfmc_token');
 
-    const cached = localStorage.getItem('dfmc_lobby_cache');
+    const cached = accountCache.getItem('dfmc_lobby_cache');
     if (cached) {
       try {
         const data = JSON.parse(cached);
@@ -257,7 +270,7 @@ export const LobbyPage: React.FC<LobbyPageProps> = ({ user, onUpdateUser, onNavi
         const rawSchedules: ScheduleHighlight[] = data.schedules || data.highlightedSchedules || [];
         const clubMap = new Map<string, ScheduleHighlight>();
         rawSchedules.forEach((s) => {
-          const key = (s.club_name || '').trim();
+          const key = String(s.club_id);
           if (!clubMap.has(key)) clubMap.set(key, s);
         });
         setSchedules(Array.from(clubMap.values()));
@@ -274,12 +287,12 @@ export const LobbyPage: React.FC<LobbyPageProps> = ({ user, onUpdateUser, onNavi
     })
       .then((res) => res.json())
       .then((data) => {
-        localStorage.setItem('dfmc_lobby_cache', JSON.stringify(data));
+        accountCache.setItem('dfmc_lobby_cache', JSON.stringify(data));
         setNotice(data.notice || null);
         const rawSchedules: ScheduleHighlight[] = data.schedules || data.highlightedSchedules || [];
         const clubMap = new Map<string, ScheduleHighlight>();
         rawSchedules.forEach((s) => {
-          const key = (s.club_name || '').trim();
+          const key = String(s.club_id);
           if (!clubMap.has(key)) clubMap.set(key, s);
         });
         setSchedules(Array.from(clubMap.values()));
@@ -290,7 +303,7 @@ export const LobbyPage: React.FC<LobbyPageProps> = ({ user, onUpdateUser, onNavi
         // Check if popup should show
         if (data.popup) {
           setPopup(data.popup);
-          const hideDate = localStorage.getItem('dfmc_hide_popup_date');
+          const hideDate = accountCache.getItem('dfmc_hide_popup_date');
           const todayStr = new Date().toISOString().split('T')[0];
           if (hideDate !== todayStr) {
             setShowPopup(true);

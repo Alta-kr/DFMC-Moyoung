@@ -214,3 +214,10 @@ functions/src/localBackfill.js가 기존 피드/홈 후처리를 재사용하고
 
 ## 2026-09-27 배포 후 상태
 기존 App/화면이 Hosting에 배포되었다. main.tsx의 DEV 모드 분리로 auth-preview는 운영 진입점이 아니다. 새 인증·summary/feed·참여·Functions/Rules는 로컬 검증 단계다. prepareUiRoles.mjs는 demo-moyoung-ui의 로컬 전체관리자/풋살 총무만 만든다. [누적 파일·상태](docs/README.md).
+
+
+## 2026-09-27 로그인 전환 전 정비
+
+[구현 상태와 전환 제한](docs/MAINTENANCE_2026_09_27.md)을 참고한다. 기존 apiInterceptor가 진입점이며 legacyParticipation/legacyManagers는 트랜잭션, legacyFeedReader는 준비된 통합 피드의 10개 커서를 담당한다. _readModels/lobby 요약과 legacyLobbyProjection은 기존 로비 데이터 형식을 유지한다. manageDomain은 Firebase 인증 후 사용할 서버 관리 작업이며 기존 관리자 API 전체가 이전된 것은 아니다.
+- `/api/clubs/:id/members`: 총무 관리창의 지연 조회. 모임 총무/관리자만 허용하며 피드 첫 응답은 회원 명단을 기다리지 않는다.
+- 이전 검사 후속: `migrationPreview.js`의 선택 `legacyUsers` 검사로 기존 ID·총무·날짜 충돌을 먼저 확인한다. 운영 수집/적용 기능은 없으며 [입력 형식](docs/MIGRATION_PREVIEW.md)을 따른다.
