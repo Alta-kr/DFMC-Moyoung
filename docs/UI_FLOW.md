@@ -1,3 +1,5 @@
+> **2026-09-28 최종 변경:** 사용자는 실명+아이디 로그인을 유지하기로 결정했다. 서버 세션·서버/미디어 관리자 OTP 및 DB 직접 접근 차단으로 전환했다. 아래 이메일/비밀번호 계획은 과거 기록이다. 코드/검증 상태와 운영 전제는 [보안 로그인 전환](SECURE_NAME_LOGIN.md)을 따른다. **아직 운영 미배포.**
+
 # 기존 화면과 목표 흐름
 
 App.tsx는 URL query와 사용자 상태, LoginPage.tsx는 현재 로그인/게스트/OTP, LobbyPage.tsx는 홈, ClubDetailPage.tsx는 피드/참여, HeadAdminPage.tsx·ServerAdminPage.tsx는 관리를 담당한다. 새 라우팅 라이브러리로 재작성하지 않는다.

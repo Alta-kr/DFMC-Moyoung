@@ -40,3 +40,6 @@ scratch/
 # Server uploads & SQLite database
 server/database.sqlite
 server/uploads/
+
+# Generated server domain bundle
+functions/lib/

@@ -626,10 +626,11 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
     });
     flash('댓글이 삭제되었습니다.');
     try {
-      fetch(`/api/clubs/${clubId}/comments/${commentId}`, {
+      const res = await fetch(`/api/clubs/${clubId}/comments/${commentId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || '댓글을 삭제하지 못했습니다.');
     } catch (err: any) {
       flashErr(err.message);
       loadClubData();
@@ -892,6 +893,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
   const schedules = data?.schedules || [];
   const managers = (club.manager_names || '').split(',').map(s => s.trim()).filter(Boolean);
   const isHost = isManager || user.role === 'head_admin' || user.role === 'server_admin';
+  const canModerateComments = isHost || user.role === 'media_admin';
 
   const isPollClosed = (p: ClubPollItem) => Boolean(p.is_closed || p.is_expired || (p.end_date && (parseMoyoungDate(p.end_date, true) ?? 0) <= Date.now()));
 
@@ -1266,7 +1268,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
                         }}>
                           <textarea
                             className="form-input"
-                            placeholder="글 내용 입력 (사진만 등록 시 비워둘 수 있습니다)"
+                            placeholder="글 내용 입력"
                             value={editingContent}
                             onChange={(e) => setEditingContent(e.target.value)}
                             rows={3}
@@ -1507,7 +1509,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
                                       >
                                         답글
                                       </button>
-                                      {(parentComm.user_id === user.id || isHost) && (
+                                      {(parentComm.user_id === user.id || canModerateComments) && (
                                         <button
                                           type="button"
                                           onClick={() => handleDeleteComment(parentComm.id)}
@@ -1548,7 +1550,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
                                           {r.content}
                                         </div>
                                       </div>
-                                      {(r.user_id === user.id || isHost) && (
+                                      {(r.user_id === user.id || canModerateComments) && (
                                         <button
                                           type="button"
                                           onClick={() => handleDeleteComment(r.id)}
@@ -1685,7 +1687,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
                         >
                           답글
                         </button>
-                        {(parentComm.user_id === user.id || isHost) && (
+                        {(parentComm.user_id === user.id || canModerateComments) && (
                           <button
                             type="button"
                             onClick={() => handleDeleteComment(parentComm.id)}
@@ -1725,7 +1727,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
                             {r.content}
                           </div>
                         </div>
-                        {(r.user_id === user.id || isHost) && (
+                        {(r.user_id === user.id || canModerateComments) && (
                           <button
                             type="button"
                             onClick={() => handleDeleteComment(r.id)}
@@ -2256,7 +2258,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
                         >
                           답글
                         </button>
-                        {(parentComm.user_id === user.id || isHost) && (
+                        {(parentComm.user_id === user.id || canModerateComments) && (
                           <button
                             type="button"
                             onClick={() => handleDeleteComment(parentComm.id)}
@@ -2296,7 +2298,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
                             {r.content}
                           </div>
                         </div>
-                        {(r.user_id === user.id || isHost) && (
+                        {(r.user_id === user.id || canModerateComments) && (
                           <button
                             type="button"
                             onClick={() => handleDeleteComment(r.id)}
@@ -2613,14 +2615,14 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
                     borderRadius: '10px',
                     letterSpacing: '0.2px'
                   }}>
-                    총무
+                    {isManager ? '총무' : user.role === 'server_admin' ? '서버 관리자' : '전체 관리자'}
                   </span>
                 </div>
 
                 <textarea
                   rows={2}
                   className="form-input"
-                  placeholder="새로운 스레드 시작하기... (공지, 모임 나눔, 사진)"
+                  placeholder="새로운 스레드 시작하기... (공지, 모임 나눔)"
                   value={postContent}
                   onChange={(e) => setPostContent(e.target.value)}
                   style={{
@@ -3077,7 +3079,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
                 #{club.name} 스레드 피드에 오신 것을 환영합니다!
               </div>
               <div style={{ marginTop: '4px', fontSize: '12.5px' }}>
-                {isHost ? '상단의 새 스레드 작성창에서 첫 나눔이나 사진을 공유해보세요.' : '아직 등록된 스레드가 없습니다.'}
+                {isHost ? '상단의 새 스레드 작성창에서 첫 나눔을 공유해보세요.' : '아직 등록된 스레드가 없습니다.'}
               </div>
             </div>
           ) : (

@@ -146,8 +146,12 @@ export function App() {
           '',
           buildUrl('club-detail', initR.clubId, initR.tab)
         );
+      } else if (initR.page && initR.page !== 'lobby') {
+        // 관리 화면으로 바로 들어와도 [로비로]가 앱 안의 로비로 돌아가도록 로비 기록을 먼저 둔다.
+        window.history.replaceState({ page: 'lobby' }, '', window.location.pathname);
+        window.history.pushState({ page: initR.page }, '', buildUrl(initR.page));
       } else {
-        window.history.replaceState({ page: initR.page || 'lobby' }, '', buildUrl(initR.page || 'lobby'));
+        window.history.replaceState({ page: 'lobby' }, '', buildUrl('lobby'));
       }
     }
 
@@ -195,6 +199,7 @@ export function App() {
   };
 
   const handleLogout = () => {
+    void fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
     clearAccountCaches();
     localStorage.removeItem('dfmc_token');
     localStorage.removeItem('dfmc_user');

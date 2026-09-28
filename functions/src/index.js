@@ -83,3 +83,6 @@ export { projectHomeSchedule, distributeHomeSummary, projectMemberHome, advanceH
 
 export { legacyLobbySchedule,legacyLobbyClub,legacyLobbyNotice,legacyLobbyPopup,legacyLobbyCell,legacyLobbySettings,advanceLegacyLobby } from './legacyLobbyProjection.js';
 export { manageDomain } from './adminDomain.js';
+
+export { api } from './api.js';
+export { cleanApiSessions } from './sessionCleanup.js';

@@ -197,12 +197,14 @@ export const HeadAdminPage: React.FC<HeadAdminPageProps> = ({ user, onBackToLobb
       fetch('/api/head-admin/popup', { headers })
         .then((res) => res.json())
         .then((pData) => {
-          if (pData?.popup) {
-            setPopupTitle(pData.popup.title || '');
-            setPopupContent(pData.popup.content_text || '');
-            setPopupImageUrl(pData.popup.image_url || '');
-            setPopupEndDate(pData.popup.end_date ? pData.popup.end_date.slice(0, 16) : '');
-            setPopupIsActive(!!pData.popup.is_active);
+          // 서버는 팝업 객체를 그대로 돌려준다. { popup } 형태도 함께 받는다.
+          const current = pData?.popup ?? (pData && !pData.error && (pData.title !== undefined || pData.content_text !== undefined) ? pData : null);
+          if (current) {
+            setPopupTitle(current.title || '');
+            setPopupContent(current.content_text || '');
+            setPopupImageUrl(current.image_url || '');
+            setPopupEndDate(current.end_date ? current.end_date.slice(0, 16) : '');
+            setPopupIsActive(!!current.is_active);
           }
         })
         .catch((err) => console.error('Failed to load popup:', err));
@@ -739,6 +741,14 @@ export const HeadAdminPage: React.FC<HeadAdminPageProps> = ({ user, onBackToLobb
       if (!res.ok) throw new Error(data.error);
 
       flashMessage(data.message);
+      // 명단을 먼저 반영하고 백그라운드에서 동기화한다.
+      const newRole = action === 'appoint' ? 'media_admin' : 'member';
+      setMembers(prev => prev.map((m: any) => m.id === userId ? { ...m, role: newRole } : m));
+      setMediaAdmins(prev => {
+        const rest = prev.filter((m: any) => m.id !== userId);
+        const target = members.find((m: any) => m.id === userId);
+        return action === 'appoint' && target ? [...rest, { ...target, role: newRole }] : rest;
+      });
       loadAdminData();
       fetchMembers();
     } catch (err: any) {

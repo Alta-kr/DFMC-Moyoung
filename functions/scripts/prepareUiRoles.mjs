@@ -1,7 +1,7 @@
 import { initializeApp, deleteApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 process.env.FIRESTORE_EMULATOR_HOST = '127.0.0.1:8082';
-const app = initializeApp({ projectId: 'demo-moyoung-ui' });
+const app = initializeApp({ projectId: 'demo-moyoung-ui' }, 'prepare-ui-roles');
 const db = getFirestore(app);
 db.settings({ host: '127.0.0.1:8082', ssl: false });
 try {

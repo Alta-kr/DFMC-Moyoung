@@ -5,8 +5,8 @@
 ## 1. 아키텍처 (가장 중요)
 
 - 프로덕션은 **Firebase Hosting 정적 SPA + Firestore + Storage** 서버리스 구조다.
-- `client/src/firebase/apiInterceptor.ts`가 `window.fetch`를 가로채 `/api/*` 요청을 Firestore/Storage와 직접 통신으로 처리한다.
-- `server/`(Express + SQLite)는 **레거시**이며 프로덕션에서 실행되지 않는다. **API, DB, 비즈니스 로직 수정은 `server/`가 아니라 반드시 `apiInterceptor.ts`에서 한다.** `server/`는 명시적 요청이 없으면 수정하지 않는다.
+- `client/src/firebase/apiInterceptor.ts`는 기존 fetch 호출에 세션 헤더를 붙인다. `/api/*`는 Hosting rewrite → Cloud Functions `api` → Admin SDK로 처리한다 (2026-09-28 코드 전환, 운영 배포 별도).
+- `server/`(Express + SQLite)는 **레거시**이며 프로덕션에서 실행되지 않는다. **API·DB 비즈니스 로직은 `functions/src/legacyApi.ts`, 인증은 `legacyAuth.js`/`apiGateway.js`에서 수정한다.** `server/`는 명시적 요청이 없으면 수정하지 않는다.
 - 기능별 파일 위치는 `ARCHITECTURE_AND_FILE_MAP.md`, 배포/운영은 `DEPLOYMENT.md`, 변경 이력은 `FULL_CHANGELOG.md`를 참고한다.
 
 ## 2. 코드 작성 원칙
@@ -23,7 +23,7 @@
 ## 3. 도메인 규칙
 
 - 역할: `server_admin` > `head_admin` > `media_admin` > 모영 총무(`is_leader`, 모영당 최대 3인) > `member` > `guest`.
-- 현재 구현은 아이디 + 실명 로그인과 관리자 이메일 OTP다. 목표 인증은 Firebase Authentication 이메일/비밀번호이며, 기존 회원 연결·게스트·관리자 추가 인증은 docs의 전환 기준을 따른다.
+- 현재 구현은 아이디 + 실명 로그인과 관리자 이메일 OTP다. 사용자 최종 결정은 실명+아이디 유지다. 서버 세션과 서버/미디어 관리자 이메일 OTP를 사용한다. 이메일/비밀번호 계획은 폐기하며 docs/SECURE_NAME_LOGIN.md가 우선한다.
 - **게스트**는 홈 화면에서 일정 참석/취소만 가능하다. 모영 피드 진입, 관리자/총무 임명, 성도 검색 목록에는 절대 포함하지 않는다(`role === 'guest'`, `is_guest` 필터).
 - `'둔산제일교회'`는 고정 기본 셀이며 삭제/개편에서 보호한다.
 - 홈 화면 일정은 **모영당 가장 임박한 1개만** 노출한다. 마감된 투표는 홈/상단 고정에서 제외하고 피드 타임라인으로 이동한다.
@@ -86,3 +86,14 @@ cd d:\Project\DFMC_Moyoung ; cmd /c "npm run build && npx firebase deploy --only
 - 총무 판별은 manager_ids(기존 회원 고유 ID), 이름은 표시 전용이다. 목표 Firebase UID leaderUids와 혼용하지 않는다.
 - 일정/투표 날짜는 functions/src/dateTime.js를 공통 사용한다. 준비 표시 없는 운영 데이터의 읽기 경로를 일괄 전환하지 않는다.
 - 최신 상태/제약은 docs/MAINTENANCE_2026_09_27.md를 읽는다.
+
+## 11. 2026-09-28 인증 최종 결정 (이전 목표보다 우선)
+
+- 일반 로그인은 아이디+실명이다. 새 비밀번호/이메일 가입을 요구하지 않는다.
+- 브라우저 Firestore 읽기·쓰기는 모두 금지한다. 현재 레거시 데이터와 UI를 보존하기 위해 참여도 서버 API를 사용하며 optimistic UI는 유지한다.
+- 사용자 이름/역할을 요청 JSON이나 예전 dfmc_token 문자열에서 신뢰하지 않는다. 해시로 저장된 만료 세션을 서버에서 검증한다.
+- 서버/미디어 관리자만 서버에서 생성·검증하는 1회용 이메일 OTP가 필요하다. 비밀 설정이 없으면 접근을 거부하며 우회 코드를 만들지 않는다.
+- API 원본은 functions/src/legacyApi.ts, 기존 공통 도메인 helper는 buildApi.mjs로 서버에 빌드한다. functions/lib는 생성물이며 직접 편집하지 않는다.
+- 공개 홈 응답은 표시용 정보만 허용한다. 기존 이미지 개별 열람은 유지하되 Storage 목록/업로드는 금지한다.
+- 실명+아이디는 일반 회원 사칭을 방지하는 강한 본인 확인이 아니다. DB 직접 접근 차단과 구분해서 설명한다.
+- 변경 상태/실행/배포 전제는 docs/SECURE_NAME_LOGIN.md 참조. 운영 배포 승인 규칙은 유지한다.

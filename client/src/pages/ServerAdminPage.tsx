@@ -1,7 +1,7 @@
 import { accountCache, cacheForAccount } from '../firebase/accountCache';
 import React, { useState, useEffect } from 'react';
 import { User, ServerMetrics } from '../types';
-import { Server, HardDrive, Activity, Users, ShieldAlert, CheckCircle, RefreshCw, Search, ChevronDown, BarChart3, Eye, Trash2, UserX } from 'lucide-react';
+import { Server, Activity, Users, ShieldAlert, CheckCircle, RefreshCw, Search, ChevronDown, BarChart3, Eye, Trash2, UserX } from 'lucide-react';
 import { ClubAnalyticsModal } from '../components/ClubAnalyticsModal';
 
 interface ServerAdminPageProps {
@@ -108,7 +108,7 @@ export const ServerAdminPage: React.FC<ServerAdminPageProps> = ({ onNavigateLobb
 
   // Delete Guest Account
   const handleDeleteGuest = async (identifier: string | number, name: string) => {
-    if (!confirm(`'${name}' 게스트 계정을 완전히 삭제하시겠습니까?\n(일정 참석 데이터 및 임시 접속 기록이 초기화됩니다)`)) {
+    if (!confirm(`'${name}' 게스트 계정을 삭제하시겠습니까?\n(바로 접속이 끊깁니다)`)) {
       return;
     }
     try {
@@ -360,44 +360,14 @@ export const ServerAdminPage: React.FC<ServerAdminPageProps> = ({ onNavigateLobb
           padding: '18px'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#9ca3af', marginBottom: '10px' }}>
-            <span style={{ fontSize: '12px', fontWeight: '600' }}>실시간 트래픽</span>
+            <span style={{ fontSize: '12px', fontWeight: '600' }}>로그인 현황</span>
             <Activity size={18} color="#38bdf8" />
           </div>
           <div style={{ fontSize: '26px', fontWeight: '800', color: '#38bdf8' }}>
-            {metrics?.traffic?.today ?? 0} <span style={{ fontSize: '13px', color: '#6b7280', fontWeight: 'normal' }}>요청 (오늘)</span>
+            {metrics?.traffic?.active_sessions ?? 0} <span style={{ fontSize: '13px', color: '#6b7280', fontWeight: 'normal' }}>활성 세션</span>
           </div>
           <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>
-            누적 전체 요청: {metrics?.traffic?.total ?? 0}회
-          </div>
-        </div>
-
-        {/* 2. 1GB Storage Gauge Card */}
-        <div style={{
-          background: '#111827',
-          border: '1px solid #1f2937',
-          borderRadius: 'var(--radius-lg)',
-          padding: '18px'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#9ca3af', marginBottom: '10px' }}>
-            <span style={{ fontSize: '12px', fontWeight: '600' }}>1GB 무료 스토리지</span>
-            <HardDrive size={18} color="#10b981" />
-          </div>
-          <div style={{ fontSize: '22px', fontWeight: '800', color: '#10b981' }}>
-            {metrics?.storage?.used_mb ?? '0'} <span style={{ fontSize: '13px', color: '#6b7280', fontWeight: 'normal' }}>/ 1,024 MB</span>
-          </div>
-          
-          {/* Progress bar */}
-          <div style={{ width: '100%', height: '8px', background: '#1f2937', borderRadius: '999px', margin: '8px 0 4px', overflow: 'hidden' }}>
-            <div style={{
-              width: `${Math.max(1, Math.min(100, parseFloat(metrics?.storage?.percentage || '0.1')))}%`,
-              height: '100%',
-              background: 'linear-gradient(90deg, #10b981, #059669)',
-              borderRadius: '999px'
-            }} />
-          </div>
-          <div style={{ fontSize: '11px', color: '#6b7280', display: 'flex', justifyContent: 'space-between' }}>
-            <span>사용률: {metrics?.storage?.percentage ?? 0}%</span>
-            <span>여유: {(1024 - parseFloat(metrics?.storage?.used_mb || '0')).toFixed(2)} MB</span>
+            누적 게시글: {metrics?.traffic?.total_posts ?? 0}개
           </div>
         </div>
 
@@ -442,7 +412,7 @@ export const ServerAdminPage: React.FC<ServerAdminPageProps> = ({ onNavigateLobb
             <ShieldAlert size={18} color={metrics?.security?.is_locked ? '#ef4444' : '#f59e0b'} />
           </div>
           <div style={{ fontSize: '16px', fontWeight: '700', color: metrics?.security?.is_locked ? '#ef4444' : '#fcd34d' }}>
-            {metrics?.security?.is_locked ? '🚨 시스템 잠금 중' : '정상 작동 중'}
+            {metrics?.security?.is_locked ? '관리자 계정 잠금 중' : '정상 작동 중'}
           </div>
           <div style={{ fontSize: '11px', color: '#9ca3af', margin: '4px 0 10px' }}>
             실패 횟수: {metrics?.security?.fail_count ?? 0}/5회
@@ -616,7 +586,7 @@ export const ServerAdminPage: React.FC<ServerAdminPageProps> = ({ onNavigateLobb
 
             {/* User Table */}
             <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left', whiteSpace: 'nowrap' }}>
                 <thead>
                   <tr style={{ borderBottom: '1px solid #374151', color: '#9ca3af', fontSize: '12px' }}>
                     <th style={{ padding: '10px 12px' }}>이름</th>
@@ -800,7 +770,7 @@ export const ServerAdminPage: React.FC<ServerAdminPageProps> = ({ onNavigateLobb
 
             {/* Guest Table */}
             <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left', whiteSpace: 'nowrap' }}>
                 <thead>
                   <tr style={{ borderBottom: '1px solid #374151', color: '#9ca3af', fontSize: '12px' }}>
                     <th style={{ padding: '10px 12px' }}>게스트 성명</th>

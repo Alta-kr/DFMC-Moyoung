@@ -6,8 +6,9 @@
     "dev": "concurrently -n \"SERVER,CLIENT\" -c \"blue,green\" \"npm run dev --prefix server\" \"npm run dev --prefix client\"",
     "build:server": "npm run build --prefix server",
     "build:client": "npm run build --prefix client",
-    "build": "npm run build:server && npm run build:client",
-    "start": "node server/dist/index.js"
+    "build": "npm run build:functions && npm run build:server && npm run build:client",
+    "start": "node server/dist/index.js",
+    "build:functions": "node functions/scripts/buildApi.mjs && node client/node_modules/typescript/bin/tsc -p functions/tsconfig.api.json"
   },
   "keywords": [
     "church",

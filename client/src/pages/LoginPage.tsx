@@ -23,6 +23,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onNavigate
   const [cells, setCells] = useState<CellItem[]>([]);
 
   // 2FA Modal states
+  const [twoFAChallenge, setTwoFAChallenge] = useState('');
   const [show2FAModal, setShow2FAModal] = useState(false);
   const [twoFACode, setTwoFACode] = useState(['', '', '', '', '']);
   const [devCodeHint, setDevCodeHint] = useState('');
@@ -42,6 +43,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onNavigate
   const [guestAcquaintance, setGuestAcquaintance] = useState('');
   const [guestLoading, setGuestLoading] = useState(false);
   const [guestError, setGuestError] = useState('');
+
+  // Admin login opens after 7 taps on the hidden bottom-right button
+  const adminTaps = useRef({ count: 0, last: 0 });
+  const [showAdminModal, setShowAdminModal] = useState(false);
+  const [adminUsername, setAdminUsername] = useState('');
+  const [adminName, setAdminName] = useState('');
+  const [adminError, setAdminError] = useState('');
 
   // Fetch cell list for dropdowns
   useEffect(() => {
@@ -90,6 +98,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onNavigate
       }
 
       if (data.requires2FA || data.requires2fa) {
+        setTwoFAChallenge(data.tempToken || '');
         setShow2FAModal(true);
         setDevCodeHint(data.devCodeHint || '이메일 인증번호를 입력해주세요.');
         setTwoFACode(['', '', '', '', '']);
@@ -137,6 +146,47 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onNavigate
       setGuestError(err.message);
     } finally {
       setGuestLoading(false);
+    }
+  };
+
+  const handleAdminTap = () => {
+    const now = Date.now();
+    const taps = adminTaps.current;
+    taps.count = now - taps.last < 1500 ? taps.count + 1 : 1;
+    taps.last = now;
+    if (taps.count >= 7) {
+      taps.count = 0;
+      setAdminError('');
+      setShowAdminModal(true);
+    }
+  };
+
+  const handleAdminLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAdminError('');
+    setLoading(true);
+
+    try {
+      const res = await fetch('/api/auth/admin-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: adminUsername.trim(), name: adminName.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || '로그인에 실패했습니다.');
+
+      setShowAdminModal(false);
+      setIsLocked(false);
+      setTwoFAChallenge(data.tempToken || '');
+      setShow2FAModal(true);
+      setDevCodeHint(data.devCodeHint || '이메일 인증번호를 입력해주세요.');
+      setTwoFACode(['', '', '', '', '']);
+      setTwoFAError('');
+      setTimeout(() => inputRefs.current[0]?.focus(), 100);
+    } catch (err: any) {
+      setAdminError(err.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -215,7 +265,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onNavigate
       const res = await fetch('/api/auth/verify-2fa', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: codeToVerify }),
+        body: JSON.stringify({ code: codeToVerify, tempToken: twoFAChallenge }),
       });
 
       const data = await res.json();
@@ -297,7 +347,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onNavigate
           모영 <span style={{ fontSize: '18px', color: 'var(--color-primary)', fontWeight: '700' }}>Moyoung</span>
         </h1>
         <p style={{ fontSize: '13.5px', color: 'var(--color-text-muted)', marginTop: '4px' }}>
-          둔산제일감리교회
+          둔산제일교회
         </p>
       </div>
 
@@ -612,8 +662,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onNavigate
                 서버 관리자 2단계 보안 인증
               </h3>
               <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', marginTop: '4px' }}>
-                <code>baehh4159@gmail.com</code>으로 발송된<br />
-                <strong>대소문자 구분 5글자</strong> 보안코드를 입력하세요.
+                {devCodeHint || '등록된 관리자 이메일로 인증번호를 보냈습니다.'}<br />
+                <strong>5자리 숫자</strong> 인증번호를 입력하세요.
               </p>
             </div>
 
@@ -630,9 +680,9 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onNavigate
                 border: '1px solid var(--color-danger)'
               }}>
                 <AlertTriangle size={24} style={{ margin: '0 auto 8px', display: 'block' }} />
-                <strong>🚨 시스템 영구 잠금 상태</strong>
+                <strong>관리자 계정 잠금</strong>
                 <p style={{ marginTop: '4px', fontSize: '12px' }}>
-                  2FA 인증을 5회 연속 실패하여 보안 락이 걸렸습니다. DB 직접 조작으로만 해제 가능합니다.
+                  인증번호를 5회 틀려 잠겼습니다. 관리자 메일의 잠금 해제 버튼을 누른 뒤 다시 로그인해주세요.
                 </p>
               </div>
             ) : cooldownRemaining > 0 ? (
@@ -721,6 +771,55 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onNavigate
           </div>
         </div>
       )}
+
+      {/* Admin Login Modal */}
+      {showAdminModal && (
+        <div className="modal-overlay" onClick={() => setShowAdminModal(false)}>
+          <div className="modal-content animate-fade-in" style={{ padding: '24px', maxWidth: '340px' }} onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ fontSize: '18px', fontWeight: '800', color: 'var(--color-text-main)', marginBottom: '16px', textAlign: 'center' }}>
+              관리자 로그인
+            </h3>
+            {adminError && (
+              <div style={{
+                padding: '10px 12px',
+                background: 'var(--color-danger-light)',
+                color: 'var(--color-danger)',
+                borderRadius: 'var(--radius-md)',
+                fontSize: '12.5px',
+                marginBottom: '14px',
+                lineHeight: 1.4
+              }}>
+                {adminError}
+              </div>
+            )}
+            <form onSubmit={handleAdminLogin}>
+              <div className="form-group" style={{ marginBottom: '12px' }}>
+                <input type="text" className="form-input" placeholder="아이디" autoComplete="off" value={adminUsername} onChange={(e) => setAdminUsername(e.target.value)} autoFocus required />
+              </div>
+              <div className="form-group" style={{ marginBottom: '18px' }}>
+                <input type="text" className="form-input" placeholder="실명" autoComplete="off" value={adminName} onChange={(e) => setAdminName(e.target.value)} required />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <button type="button" className="btn btn-secondary" onClick={() => setShowAdminModal(false)} style={{ fontSize: '13px' }}>
+                  닫기
+                </button>
+                <button type="submit" className="btn btn-primary" disabled={loading} style={{ fontSize: '13px' }}>
+                  인증번호 받기
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Hidden admin entry: tap 7 times */}
+      <button
+        type="button"
+        aria-hidden="true"
+        tabIndex={-1}
+        onClick={handleAdminTap}
+        style={{ position: 'fixed', right: 0, bottom: 0, width: '36px', height: '36px', opacity: 0, border: 'none', background: 'transparent', padding: 0, zIndex: 50 }}
+      />
 
       {/* Guest Login Modal */}
       {showGuestModal && (

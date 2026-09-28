@@ -108,15 +108,8 @@ export interface TargetedWelcomeItem {
 
 export interface ServerMetrics {
   traffic: {
-    today: number;
-    total: number;
-  };
-  storage: {
-    used_bytes: number;
-    limit_bytes: number;
-    used_mb: string;
-    limit_mb: number;
-    percentage: string;
+    active_sessions: number;
+    total_posts: number;
   };
   total_members: number;
   total_guests?: number;

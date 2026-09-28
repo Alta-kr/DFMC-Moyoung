@@ -1,3 +1,5 @@
+> 2026-09-28: 기존 API를 Cloud Functions 서버로 이동했다. 실명+아이디 유지, 서버 세션/OTP, Firestore 직접 접근 금지. 현재 미배포. 최신 파일 책임과 배포 순서는 [전환 안내](docs/SECURE_NAME_LOGIN.md)를 따른다.
+
 ## 2026-09-27 홈·피드 및 관리자 멤버십 구현
 
 로컬 auth-preview에서 로그인 → 홈 요약 → 모임 피드 10개씩 조회를 연결했다. setClubMembership Callable Function으로 관리자 가입/해제·총무 지정과 3명 제한, 변경 기록, 홈 요약 동시 갱신을 구현했다. 상세 실행 방법·변경 파일 책임·남은 범위는 [구현 안내](docs/FEED_AND_MEMBERSHIP.md)를 따른다.

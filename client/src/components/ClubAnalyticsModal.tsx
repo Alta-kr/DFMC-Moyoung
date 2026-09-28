@@ -193,6 +193,8 @@ export const ClubAnalyticsModal: React.FC<ClubAnalyticsModalProps> = ({
               onChange={(e) => {
                 const val = e.target.value;
                 setSelectedClubId(val === 'all' ? 'all' : Number(val));
+                // 순위 탭은 전체 보기에서만 있으므로 모영을 고르면 일별로 돌아간다.
+                if (val !== 'all' && statTab === 'ranking') setStatTab('daily');
               }}
               style={{
                 fontSize: '13px',
