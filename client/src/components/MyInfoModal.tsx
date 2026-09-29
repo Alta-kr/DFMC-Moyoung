@@ -56,7 +56,8 @@ export const MyInfoModal: React.FC<MyInfoModalProps> = ({
 
   // Fetch church clubs & cells to validate registered cells in real-time
   useEffect(() => {
-    fetch('/api/lobby/data')
+    const token = localStorage.getItem('dfmc_token');
+    fetch('/api/lobby/data', { headers: token ? { Authorization: `Bearer ${token}` } : {} })
       .then((res) => res.json())
       .then((data) => {
         if (data.cells) {

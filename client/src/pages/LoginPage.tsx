@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { User, CellItem } from '../types';
+import { User } from '../types';
 import { ShieldCheck, UserPlus, LogIn, Lock, AlertTriangle, Clock, KeyRound, Check, HelpCircle } from 'lucide-react';
 
 interface LoginPageProps {
@@ -20,7 +20,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onNavigate
   const [regCellName, setRegCellName] = useState('');
   const [isAcquaintance, setIsAcquaintance] = useState(false);
   const [showAcquaintanceHelp, setShowAcquaintanceHelp] = useState(false);
-  const [cells, setCells] = useState<CellItem[]>([]);
 
   // 2FA Modal states
   const [twoFAChallenge, setTwoFAChallenge] = useState('');
@@ -50,18 +49,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onNavigate
   const [adminUsername, setAdminUsername] = useState('');
   const [adminName, setAdminName] = useState('');
   const [adminError, setAdminError] = useState('');
-
-  // Fetch cell list for dropdowns
-  useEffect(() => {
-    fetch('/api/lobby/data')
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.cells && data.cells.length > 0) {
-          setCells(data.cells);
-        }
-      })
-      .catch(() => {});
-  }, []);
 
   // Cooldown countdown timer
   useEffect(() => {
@@ -682,7 +669,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onNavigate
                 <AlertTriangle size={24} style={{ margin: '0 auto 8px', display: 'block' }} />
                 <strong>관리자 계정 잠금</strong>
                 <p style={{ marginTop: '4px', fontSize: '12px' }}>
-                  인증번호를 5회 틀려 잠겼습니다. 관리자 메일의 잠금 해제 버튼을 누른 뒤 다시 로그인해주세요.
+                  관리자 인증을 5회 넘게 실패해 잠겼습니다. 관리자 메일의 잠금 해제 버튼을 누른 뒤 다시 로그인해주세요.
                 </p>
               </div>
             ) : cooldownRemaining > 0 ? (

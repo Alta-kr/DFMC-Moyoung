@@ -46,7 +46,9 @@ export async function dispatchApi(db, { url, method, body = {}, token = '', ip =
     });
     const pick = (value, keys) => value ? Object.fromEntries(keys.filter(key => value[key] !== undefined).map(key => [key,value[key]])) : null;
     const clubs = (data.clubs || []).map(club => pick(club,['id','name','icon','description','member_count','manager_names']));
-    const cells = (data.cells || []).map(cell => pick(cell,['id','name']));
+    // Cell names are the sign-up secret, so only signed-in members receive them.
+    const member = session && !(session.user.role === 'guest' || session.user.is_guest);
+    const cells = member ? (data.cells || []).map(cell => pick(cell,['id','name'])) : [];
     const notice = pick(data.notice,['id','title','content','is_pinned','created_at','author_name']);
     const popup = pick(data.popup,['id','title','content_text','image_url','end_date','is_active']);
     const welcome = pick(data.welcome || data.welcomeMessage,['welcome_tagline','welcome_message','group_name','is_targeted']);

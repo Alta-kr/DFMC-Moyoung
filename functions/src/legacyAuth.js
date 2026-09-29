@@ -20,7 +20,7 @@ export async function needsStepUp(_db, user) {
   return user.role === 'server_admin';
 }
 const LOCK_LIMIT = 5, UNLOCK_MS = 86400000;
-const lockedError = () => Object.assign(new Error('인증번호를 5회 틀려 잠겼습니다. 관리자 메일의 잠금 해제 버튼을 눌러주세요.'),{status:423,is_locked:true});
+const lockedError = () => Object.assign(new Error('관리자 인증을 5회 넘게 실패해 잠겼습니다. 관리자 메일의 잠금 해제 버튼을 눌러주세요.'),{status:423,is_locked:true});
 // Issues a one-time unlock link for a locked admin; only the digest is stored.
 async function mailUnlock(db, username, mail) {
   const token = randomToken();
@@ -59,7 +59,8 @@ export async function authenticate(db, path, body, ip, mail) {
   await limitRequests(db,'auth-ip:' + ip,40);
   if (path === '/api/auth/login' || path === '/api/auth/admin-login') {
     const username = usernameOf(body.username), name = text(body.name);
-    await limitRequests(db,'login:' + username,10);
+    // Keyed by ID and IP so one caller cannot lock another member out of login.
+    await limitRequests(db,'login:' + username + ':' + ip,10);
     const snap = await db.doc('users/' + username).get(), user = snap.data();
     if (!user || user.disabled || user.name !== name || user.role === 'guest' || user.is_guest) fail(401,'아이디와 실명을 확인해주세요.');
     user.username = snap.id;
@@ -67,9 +68,17 @@ export async function authenticate(db, path, body, ip, mail) {
     // Server admins sign in only through the separate admin login.
     if (admin !== path.endsWith('admin-login')) fail(401,'아이디와 실명을 확인해주세요.');
     if (!admin) return issueSession(db,user);
-    const lock = (await db.doc('_apiLocks/' + username).get()).data();
-    if (lock?.locked) {
-      if (!(lock.unlockExpiresAt?.toMillis() > Date.now())) await mailUnlock(db,username,mail);
+    // Every mailed code counts until one is verified; past the limit the account locks and no code is sent.
+    const lockRef = db.doc('_apiLocks/' + username);
+    const lock = await db.runTransaction(async tx => {
+      const current = (await tx.get(lockRef)).data() || {};
+      if (current.locked) return current;
+      const sent = (current.sent || 0) + 1, locked = sent > LOCK_LIMIT;
+      tx.set(lockRef,{ sent, locked, updatedAt: new Date() },{ merge: true });
+      return { locked, newlyLocked: locked };
+    });
+    if (lock.locked) {
+      if (lock.newlyLocked || !(lock.unlockExpiresAt?.toMillis() > Date.now())) await mailUnlock(db,username,mail);
       throw lockedError();
     }
     const challenge = randomToken(), code = String(randomInt(10000,100000));
