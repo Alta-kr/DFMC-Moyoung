@@ -113,6 +113,13 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
   const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false);
   const loadMoreRef = useRef<HTMLDivElement>(null);
 
+  // 화면을 열어 둔 채 종료 시각이 지나도 일정·투표가 마감으로 내려가도록 1분마다 다시 판정한다.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 60 * 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
   const token = accountCache.getItem('dfmc_token');
 
   // Close kebab menu when clicking outside
@@ -895,10 +902,10 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
   const isHost = isManager || user.role === 'head_admin' || user.role === 'server_admin';
   const canModerateComments = isHost || user.role === 'media_admin';
 
-  const isPollClosed = (p: ClubPollItem) => Boolean(p.is_closed || p.is_expired || (p.end_date && (parseMoyoungDate(p.end_date, true) ?? 0) <= Date.now()));
+  const isPollClosed = (p: ClubPollItem) => Boolean(p.is_closed || p.is_expired || (p.end_date && (parseMoyoungDate(p.end_date, true) ?? 0) <= now));
 
   const getScheduleTimestamp = (s: ClubScheduleItem) => scheduleTimes(s).startsAtMs ?? NaN;
-  const isSchedulePast = (s: ClubScheduleItem) => (scheduleTimes(s).endsAtMs ?? 0) <= Date.now();
+  const isSchedulePast = (s: ClubScheduleItem) => (scheduleTimes(s).endsAtMs ?? 0) <= now;
 
   // 1. Pinned Notices / Posts (Always at the very top of the feed)
   const pinnedPosts: ClubPostItem[] = (posts || [])
