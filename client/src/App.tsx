@@ -1,4 +1,4 @@
-import { clearAccountCaches } from './firebase/accountCache';
+import { clearAccountCaches, accountCache } from './firebase/accountCache';
 import React, { useState, useEffect, useRef } from 'react';
 import { User, UserRole } from './types';
 import { Header } from './components/Header';
@@ -62,6 +62,8 @@ export function App() {
   // URL 파싱으로 초기 페이지 즉각 결정 (디폴트: lobby)
   const initialRoute = useRef(parseRouteFromUrl());
   const [currentPage, setCurrentPage] = useState<string>(() => initialRoute.current.page || 'lobby');
+  // 로고로 홈에 가면 캐시를 비우고 홈을 새로 불러온다(삭제·수정이 바로 반영되도록).
+  const [lobbyRefresh, setLobbyRefresh] = useState(0);
   const [selectedClubId, setSelectedClubId] = useState<number | null>(() => initialRoute.current.clubId || null);
   const [selectedClubTab, setSelectedClubTab] = useState<'talk' | 'polls' | 'posts' | 'schedules' | 'photos'>(
     () => initialRoute.current.tab || 'talk'
@@ -261,15 +263,17 @@ export function App() {
 
   // Navigation from Header
   const handleNavigate = (page: string) => {
+    if (page === 'lobby') {
+      accountCache.removeItem('dfmc_lobby_cache');
+      setLobbyRefresh(n => n + 1);
+      if (currentPage !== 'lobby') handleBackToLobby();
+      return;
+    }
     if (page === currentPage) return;
 
-    if (page === 'lobby') {
-      handleBackToLobby();
-    } else {
-      window.history.pushState({ page }, '', buildUrl(page));
-      setSelectedClubId(null);
-      setCurrentPage(page);
-    }
+    window.history.pushState({ page }, '', buildUrl(page));
+    setSelectedClubId(null);
+    setCurrentPage(page);
   };
 
   // My Info Modal open/close with history push
@@ -322,7 +326,7 @@ export function App() {
             onBackToLobby={handleBackToLobby}
           />
         ) : (
-          <LobbyPage key={user?.username || 'anonymous'}
+          <LobbyPage key={(user?.username || 'anonymous') + ':' + lobbyRefresh}
             user={user}
             onUpdateUser={handleUpdateUser}
             onNavigateClub={handleNavigateClub}
