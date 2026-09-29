@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { User, Club, Notice, ScheduleHighlight, PopupItem, CellItem, WelcomeSettings } from '../types';
 import { PopupModal } from '../components/PopupModal';
 import { CellUpdateModal } from '../components/CellUpdateModal';
+import { SignupConsent, FULL_CONSENTS } from '../components/SignupConsent';
 import { Megaphone, Users, Calendar, Clock, MapPin, ArrowRight, ChevronDown, ChevronUp, Sparkles, Check, UserPlus, X, LogIn, User as UserIcon, RefreshCw } from 'lucide-react';
 
 interface LobbyPageProps {
@@ -206,6 +207,7 @@ export const LobbyPage: React.FC<LobbyPageProps> = ({ user, onUpdateUser, onNavi
         body: JSON.stringify({
           name: guestName.trim(),
           acquaintance_name: guestAcquaintance.trim(),
+          consents: FULL_CONSENTS,
         }),
       });
       const data = await res.json();
@@ -1041,6 +1043,8 @@ export const LobbyPage: React.FC<LobbyPageProps> = ({ user, onUpdateUser, onNavi
                       required
                     />
                   </div>
+
+                  <SignupConsent action="참석하기" dark />
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '12px' }}>
                     <button

@@ -19,6 +19,9 @@ export async function limitRequests(db, key, max = 20, windowMs = 600000) {
 export async function needsStepUp(_db, user) {
   return user.role === 'server_admin';
 }
+// Bump CONSENT_VERSION with client/src/components/SignupConsent.tsx whenever the terms text changes.
+export const CONSENT_VERSION = '2026-09-29';
+export const CONSENT_ITEMS = ['terms','privacy','age14'];
 const LOCK_LIMIT = 5, UNLOCK_MS = 86400000;
 const lockedError = () => Object.assign(new Error('관리자 인증을 5회 넘게 실패해 잠겼습니다. 관리자 메일의 잠금 해제 버튼을 눌러주세요.'),{status:423,is_locked:true});
 // Issues a one-time unlock link for a locked admin; only the digest is stored.
@@ -121,15 +124,25 @@ export async function authenticate(db, path, body, ip, mail) {
   }
   if (path === '/api/auth/register' || path === '/api/auth/guest-login') {
     const guest = path.endsWith('guest-login');
+    // Every required consent must be explicitly true; the agreed time is stamped by the server.
+    const consent = body.consents || {};
+    if (!CONSENT_ITEMS.every(item => consent[item] === true)) fail(400,'필수 약관에 모두 동의해주세요.');
     const username = guest ? 'guest_' + randomBytes(12).toString('hex') : usernameOf(body.username);
     const name = text(body.name), cell = guest ? '지인: ' + text(body.acquaintance_name) : text(body.cell_name);
+    const now = new Date().toISOString();
     const user = { id: Date.now() * 1000 + randomInt(1000), username, name, cell_name:cell,
-      role:guest?'guest':'member', is_guest:guest, cell_verified:guest?0:1, created_at:new Date().toISOString() };
+      role:guest?'guest':'member', is_guest:guest, cell_verified:guest?0:1, created_at:now,
+      consent_version:CONSENT_VERSION, consent_items:CONSENT_ITEMS, consent_agreed_at:now };
     if (!guest && !body.is_acquaintance) {
       const cells = await db.collection('cells').get();
       const matched = cells.docs.find(doc => doc.data().name?.replace(/\s/g,'') === cell.replace(/\s/g,''));
       if (!matched) fail(400,'등록된 셀을 선택해주세요.');
       user.cell_name = matched.data().name;
+    }
+    // Acquaintance signups must name an existing, active member (guests do not count).
+    if (!guest && body.is_acquaintance) {
+      const members = await db.collection('users').where('name','==',cell).limit(20).get();
+      if (!members.docs.some(doc => { const m = doc.data(); return !m.disabled && !m.is_guest && m.role !== 'guest'; })) fail(400,'등록된 성도 이름을 확인해주세요.');
     }
     await db.doc('users/' + username).create(user).catch(error => { if(error.code===6) fail(409,'이미 사용 중인 아이디입니다.'); throw error; });
     return issueSession(db,user);

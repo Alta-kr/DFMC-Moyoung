@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { User } from '../types';
+import { SignupConsent, FULL_CONSENTS } from '../components/SignupConsent';
 import { ShieldCheck, UserPlus, LogIn, Lock, AlertTriangle, Clock, KeyRound, Check, HelpCircle } from 'lucide-react';
 
 interface LoginPageProps {
@@ -123,6 +124,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onNavigate
         body: JSON.stringify({
           name: guestName.trim(),
           acquaintance_name: guestAcquaintance.trim(),
+          consents: FULL_CONSENTS,
         }),
       });
       const data = await res.json();
@@ -193,6 +195,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onNavigate
           name: regName.trim(),
           cell_name: regCellName.trim(),
           is_acquaintance: isAcquaintance,
+          consents: FULL_CONSENTS,
         }),
       });
 
@@ -610,10 +613,12 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onNavigate
 
               <span style={{ display: 'block', marginTop: '6px', fontSize: '11.5px', color: 'var(--color-text-muted)' }}>
                 {isAcquaintance
-                  ? "※ 둔산제일교회에 등록된 지인의 실명을 입력하셔야 교차 확인 후 가입이 승인됩니다."
+                  ? "※ 모영에 가입된 성도의 실명을 정확히 입력하셔야 가입됩니다."
                   : "※ 교회에 등록된 공식 셀 이름을 정확히 입력하셔야 교차 확인 후 승인됩니다."}
               </span>
             </div>
+
+            <SignupConsent action="회원가입 완료" />
 
             <button
               type="submit"
@@ -890,6 +895,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onNavigate
                   required
                 />
               </div>
+
+              <SignupConsent action="시작하기" dark />
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                 <button
