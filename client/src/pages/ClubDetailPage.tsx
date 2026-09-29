@@ -1,6 +1,7 @@
 import { samePerson, managerIds } from '../firebase/identity';
 import { parseMoyoungDate, scheduleTimes } from '../../../functions/src/dateTime.js';
 import { accountCache, cacheForAccount } from '../firebase/accountCache';
+import { hasPendingMutations } from '../firebase/apiInterceptor';
 import React, { useState, useEffect, useRef } from 'react';
 import { User, ClubDetailData, ClubPostItem, ClubPollItem, ClubScheduleItem } from '../types';
 import { 
@@ -120,6 +121,30 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
     const timer = window.setInterval(() => setNow(Date.now()), 60 * 1000);
     return () => window.clearInterval(timer);
   }, []);
+
+  // 앱으로 돌아올 때와 보고 있는 동안 30초마다 조용히 새로 받아 다른 사람의 변경을 반영한다.
+  // 진행 중인 변경이 있으면 건너뛰어 누르는 즉시 반영한 화면을 덮어쓰지 않는다.
+  useEffect(() => {
+    let active = true;
+    const refresh = async () => {
+      if (document.visibilityState !== 'visible' || hasPendingMutations()) return;
+      try {
+        const res = await fetch(`/api/clubs/${clubId}`, { headers: { Authorization: `Bearer ${accountCache.getItem('dfmc_token')}` } });
+        if (!res.ok || !active || hasPendingMutations()) return;
+        const fresh: ClubDetailData = await res.json();
+        if (active && !hasPendingMutations()) setData(prev => prev ? { ...fresh, churchMembers: prev.churchMembers ?? fresh.churchMembers } : prev);
+      } catch {}
+    };
+    document.addEventListener('visibilitychange', refresh);
+    window.addEventListener('focus', refresh);
+    const timer = window.setInterval(refresh, 30 * 1000);
+    return () => {
+      active = false;
+      document.removeEventListener('visibilitychange', refresh);
+      window.removeEventListener('focus', refresh);
+      window.clearInterval(timer);
+    };
+  }, [clubId]);
 
   const token = accountCache.getItem('dfmc_token');
 

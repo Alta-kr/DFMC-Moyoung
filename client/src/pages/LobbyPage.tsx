@@ -1,5 +1,6 @@
 import { accountCache, cacheForAccount } from '../firebase/accountCache';
-import React, { useState, useEffect } from 'react';
+import { hasPendingMutations } from '../firebase/apiInterceptor';
+import React, { useState, useEffect, useRef } from 'react';
 import { User, Club, Notice, ScheduleHighlight, PopupItem, CellItem, WelcomeSettings } from '../types';
 import { PopupModal } from '../components/PopupModal';
 import { CellUpdateModal } from '../components/CellUpdateModal';
@@ -61,6 +62,9 @@ export const LobbyPage: React.FC<LobbyPageProps> = ({ user, onUpdateUser, onNavi
   const [guestLoading, setGuestLoading] = useState(false);
   const [guestError, setGuestError] = useState('');
   const [pendingSchedForGuest, setPendingSchedForGuest] = useState<ScheduleHighlight | null>(null);
+
+  const loadingAttendRef = useRef<number | null>(null);
+  loadingAttendRef.current = loadingAttendId;
 
   const flashToast = (msg: string) => {
     setToastMessage(msg);
@@ -282,13 +286,20 @@ export const LobbyPage: React.FC<LobbyPageProps> = ({ user, onUpdateUser, onNavi
       } catch (e) { }
     }
 
-    fetch('/api/lobby/data', {
+    // 처음 열 때, 앱으로 돌아올 때, 보고 있는 동안 30초마다 조용히 새로 받는다(다른 사람의 변경 반영).
+    let first = true;
+    const refresh = () => {
+      if (loadingAttendRef.current !== null || hasPendingMutations()) return;
+      const isFirst = first;
+      first = false;
+      fetch('/api/lobby/data', {
       headers: {
         ...(token ? { Authorization: `Bearer ${token}` } : {})
       }
     })
-      .then((res) => res.json())
+      .then((res) => { if (!res.ok) throw new Error('lobby ' + res.status); return res.json(); })
       .then((data) => {
+        if (loadingAttendRef.current !== null || hasPendingMutations()) return;
         accountCache.setItem('dfmc_lobby_cache', JSON.stringify(data));
         setNotice(data.notice || null);
         const rawSchedules: ScheduleHighlight[] = data.schedules || data.highlightedSchedules || [];
@@ -303,7 +314,7 @@ export const LobbyPage: React.FC<LobbyPageProps> = ({ user, onUpdateUser, onNavi
         setWelcome(data.welcome || data.welcomeMessage || null);
 
         // Check if popup should show
-        if (data.popup) {
+        if (isFirst && data.popup) {
           setPopup(data.popup);
           const hideDate = accountCache.getItem('dfmc_hide_popup_date');
           const todayStr = new Date().toISOString().split('T')[0];
@@ -314,6 +325,17 @@ export const LobbyPage: React.FC<LobbyPageProps> = ({ user, onUpdateUser, onNavi
       })
       .catch((err) => console.error('Failed to load lobby data:', err))
       .finally(() => setLoading(false));
+    };
+    refresh();
+    const onVisible = () => { if (document.visibilityState === 'visible') refresh(); };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onVisible);
+    const timer = window.setInterval(onVisible, 30 * 1000);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onVisible);
+      window.clearInterval(timer);
+    };
   }, []);
 
   return (
