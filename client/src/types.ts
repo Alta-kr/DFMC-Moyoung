@@ -57,6 +57,7 @@ export interface ScheduleHighlight {
   fee_info?: string;
   attendees_count: number;
   total_members?: number;
+  max_attendees?: number;
   is_attending?: boolean;
 }
 
@@ -193,6 +194,7 @@ export interface ClubScheduleItem {
   event_date: string;
   location: string;
   fee_info: string;
+  max_attendees?: number;
   attendees: Attendee[];
   creator_name: string;
   created_at: string;

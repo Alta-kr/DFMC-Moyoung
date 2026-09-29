@@ -275,6 +275,7 @@ export async function handleLegacyApi(db: any, requestUrl: URL, method: string, 
             fee_info: earliest.fee_info || '',
             attendees_count: attendees.length,
             total_members: earliest.total_members,
+            max_attendees: earliest.max_attendees ?? undefined,
             is_attending: isAttending,
             timestamp: earliest.timestamp
           });
@@ -829,6 +830,10 @@ export async function handleLegacyApi(db: any, requestUrl: URL, method: string, 
 
           const times = scheduleTimes({ ...body, event_date });
           if (times.startsAtMs === null || times.endsAtMs === null || times.endsAtMs <= times.startsAtMs) return makeResponse({ error: '일정의 시작·종료 시각을 확인해주세요.' }, 400);
+          // 모집 인원은 선택 입력이다. 비우면 제한 없음.
+          const rawMax = body?.max_attendees ?? body?.maxAttendees;
+          const max_attendees = rawMax === undefined || rawMax === null || rawMax === '' ? undefined : Number(rawMax);
+          if (max_attendees !== undefined && (!Number.isInteger(max_attendees) || max_attendees < 1 || max_attendees > 1000)) return makeResponse({ error: '모집 인원은 1명 이상 숫자로 입력해주세요.' }, 400);
           const newSched = {
             feedSchemaVersion: 1, feedClubId: String(clubId),
             ...times,
@@ -838,6 +843,7 @@ export async function handleLegacyApi(db: any, requestUrl: URL, method: string, 
             event_date,
             location: location || '미정',
             fee_info: fee_info || '무료',
+            max_attendees,
             attendees: [
               { user_id: user.id, user_name: user.name ?? '회원', user_cell: user.cell_name ?? '', joined_at: new Date().toISOString() }
             ],

@@ -14,6 +14,11 @@ export const participantKey = (entry, index = 0) => entry?.user_id != null || en
 const timeOf = entry => String(entry.joined_at ?? entry.voted_at ?? '');
 const sorted = list => list.sort((a, b) => timeOf(a).localeCompare(timeOf(b)));
 const strip = ({ club_id: _c, parent_id: _p, ...entry }) => entry;
+// 모집 인원. 비어 있거나 1 미만이면 제한 없음.
+export const capacityOf = data => {
+  const value = Number(data?.max_attendees ?? data?.maxAttendees);
+  return Number.isInteger(value) && value > 0 ? value : null;
+};
 
 // 한 모영의 모든 참석/투표를 한 번에 읽는다(부모 id → 목록).
 export async function participantsByClub(db, collectionName, clubId) {
@@ -88,7 +93,17 @@ export async function saveParticipation(db, collectionName, docId, clubId, usern
   const entry = { user_key: username, user_id: user.id, user_name: user.name, user_cell: user.cell_name ?? '',
     club_id: Number(clubId), parent_id: Number(data.id) };
   if (poll) await own.set({ ...entry, selected_option: value, voted_at: new Date().toISOString() });
-  else if (value) await own.set({ ...entry, userId: user.id, userName: user.name, cellName: user.cell_name ?? '', joined_at: new Date().toISOString() });
+  else if (value) {
+    const record = { ...entry, userId: user.id, userName: user.name, cellName: user.cell_name ?? '', joined_at: new Date().toISOString() };
+    const cap = capacityOf(data);
+    // 정원이 있으면 트랜잭션으로 인원을 세어 동시에 신청해도 정원을 넘지 않게 한다.
+    if (cap) await db.runTransaction(async tx => {
+      const [mine, all] = await Promise.all([tx.get(own), tx.get(ref.collection(SUB[collectionName]))]);
+      if (!mine.exists && all.size >= cap) throw Object.assign(new Error('모집 인원이 찼습니다.'), { status: 409 });
+      tx.set(own, record);
+    });
+    else await own.set(record);
+  }
   else await own.delete();
   // 이전 방식으로 저장된 같은 회원 기록(아이디 키)이 남아 있으면 정리한다.
   const legacyKey = ref.collection(SUB[collectionName]).doc('key_' + username);

@@ -483,6 +483,7 @@ export const LobbyPage: React.FC<LobbyPageProps> = ({ user, onUpdateUser, onNavi
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {schedules.map((sched, idx) => {
               const isImminent = idx === 0;
+              const isFull = !sched.is_attending && Boolean(sched.max_attendees) && sched.attendees_count >= Number(sched.max_attendees);
 
               return (
                 <div
@@ -519,7 +520,7 @@ export const LobbyPage: React.FC<LobbyPageProps> = ({ user, onUpdateUser, onNavi
                       )}
                     </div>
                     <span style={{ fontSize: '12px', color: isImminent ? '#1e40af' : 'var(--color-text-muted)', fontWeight: '700' }}>
-                      👥 {sched.attendees_count}명 참석 신청
+                      👥 {sched.attendees_count}{sched.max_attendees ? `/${sched.max_attendees}` : ''}명 참석 신청
                     </span>
                   </div>
 
@@ -598,16 +599,17 @@ export const LobbyPage: React.FC<LobbyPageProps> = ({ user, onUpdateUser, onNavi
                       {/* 2. 참석하기 / 참석취소 버튼 */}
                       <button
                         type="button"
-                        disabled={loadingAttendId === sched.id}
+                        disabled={loadingAttendId === sched.id || isFull}
                         onClick={(e) => {
                           e.stopPropagation();
                           handleAttendButtonClick(sched);
                         }}
                         className="btn btn-sm"
                         style={{
-                          background: sched.is_attending ? '#fef2f2' : '#2563eb',
-                          color: sched.is_attending ? '#dc2626' : '#ffffff',
-                          border: sched.is_attending ? '1.5px solid #f87171' : '1.5px solid #1d4ed8',
+                          background: sched.is_attending ? '#fef2f2' : isFull ? '#e2e8f0' : '#2563eb',
+                          color: sched.is_attending ? '#dc2626' : isFull ? '#64748b' : '#ffffff',
+                          border: sched.is_attending ? '1.5px solid #f87171' : isFull ? '1.5px solid #cbd5e1' : '1.5px solid #1d4ed8',
+                          cursor: isFull ? 'not-allowed' : 'pointer',
                           padding: '7px 0',
                           fontSize: '11.5px',
                           fontWeight: '800',
@@ -628,6 +630,8 @@ export const LobbyPage: React.FC<LobbyPageProps> = ({ user, onUpdateUser, onNavi
                             <Check size={12} />
                             <span>참석취소</span>
                           </>
+                        ) : isFull ? (
+                          <span>모집 마감</span>
                         ) : (
                           <>
                             <span>참석하기</span>

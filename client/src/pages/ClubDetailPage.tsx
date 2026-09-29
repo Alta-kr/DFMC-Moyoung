@@ -67,6 +67,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
   const [schedEndTime, setSchedEndTime] = useState('23:59');
   const [schedLocation, setSchedLocation] = useState('');
   const [schedFee, setSchedFee] = useState('10,000원');
+  const [schedMax, setSchedMax] = useState('');
   const [attendingScheduleId, setAttendingScheduleId] = useState<number | null>(null);
 
   // Feed Post Creation & Explorer File Upload
@@ -828,7 +829,8 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
           title: schedTitle.trim(),
           event_date: combinedDate,
           location: schedLocation.trim(),
-          fee_info: schedFee.trim() || '10,000원'
+          fee_info: schedFee.trim() || '10,000원',
+          max_attendees: schedMax.trim() ? Number(schedMax) : null
         }),
       });
       const resData = await res.json();
@@ -841,6 +843,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
       setSchedEndTime('23:59');
       setSchedLocation('');
       setSchedFee('10,000원');
+      setSchedMax('');
       // Optimistic add schedule
       if (resData.schedule) {
         setData(prev => {
@@ -2913,6 +2916,8 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
                 const isAttending = attendees.some((a: any) => 
                   samePerson(a, user)
                 );
+                // 정원이 차면 참석하지 않은 회원은 버튼을 누를 수 없다. 서버도 초과 신청을 거부한다.
+                const isFull = !isAttending && Boolean(sched.max_attendees) && attendees.length >= Number(sched.max_attendees);
 
                 return (
                   <div
@@ -2956,6 +2961,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
                         <button
                           type="button"
                           onClick={() => handleToggleAttendance(sched.id)}
+                          aria-disabled={isFull}
                           className={isAttending ? 'btn btn-sm btn-outline-danger' : 'btn btn-sm btn-primary'}
                           style={{
                             fontSize: '11.5px',
@@ -2965,13 +2971,13 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
                             display: 'flex',
                             alignItems: 'center',
                             gap: '4px',
-                            background: isAttending ? '#fef2f2' : '#10b981',
-                            color: isAttending ? '#dc2626' : '#ffffff',
+                            background: isAttending ? '#fef2f2' : isFull ? '#e2e8f0' : '#10b981',
+                            color: isAttending ? '#dc2626' : isFull ? '#64748b' : '#ffffff',
                             border: isAttending ? '1.5px solid #f87171' : 'none',
-                            cursor: 'pointer',
+                            cursor: isFull ? 'not-allowed' : 'pointer',
                             boxShadow: isAttending ? '0 1px 3px rgba(220, 38, 38, 0.1)' : '0 1px 3px rgba(16, 185, 129, 0.2)'
                           }}
-                          disabled={attendingScheduleId === sched.id}
+                          disabled={attendingScheduleId === sched.id || isFull}
                         >
                           {attendingScheduleId === sched.id ? (
                             <>
@@ -2980,6 +2986,8 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
                             </>
                           ) : isAttending ? (
                             '❌ 참석 취소'
+                          ) : isFull ? (
+                            '모집 마감'
                           ) : (
                             '🙋‍♂️ 참석 신청'
                           )}
@@ -3357,6 +3365,19 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
                   value={schedFee}
                   onChange={(e) => setSchedFee(e.target.value)}
                   placeholder="예: 10,000원 (구장 대여비)"
+                />
+              </div>
+
+              <div>
+                <label className="form-label">모집 인원</label>
+                <input
+                  type="number"
+                  className="form-input"
+                  value={schedMax}
+                  onChange={(e) => setSchedMax(e.target.value)}
+                  min={1}
+                  max={1000}
+                  placeholder="비우면 제한 없음"
                 />
               </div>
 
