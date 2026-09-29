@@ -1,3 +1,4 @@
+import { invalidateCachesAfter } from './accountCache';
 // Keep the existing fetch contract; database access is now server-only.
 export function setupApiInterceptor() {
   const originalFetch = window.fetch.bind(window);
@@ -10,6 +11,9 @@ export function setupApiInterceptor() {
       const token = localStorage.getItem('dfmc_token');
       if (token) headers.set('Authorization', `Bearer ${token}`);
     }
-    return originalFetch(input, { ...init, headers, credentials: 'same-origin' });
+    const response = await originalFetch(input, { ...init, headers, credentials: 'same-origin' });
+    const method = (init?.method || (input instanceof Request ? input.method : 'GET')).toUpperCase();
+    if (response.ok && method !== 'GET') { try { invalidateCachesAfter(url.pathname); } catch {} }
+    return response;
   };
 }
