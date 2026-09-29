@@ -2122,7 +2122,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
               <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '8px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
                   <span style={{ fontSize: '11.5px', fontWeight: '700', color: '#475569' }}>
-                    참석자 ({attendees.length}명):
+                    참석자 ({attendees.length}{sched.max_attendees ? `/${sched.max_attendees}` : ''}명):
                   </span>
                   {isAttending && (
                     <span style={{
@@ -3034,7 +3034,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
                     {/* Attendees List */}
                     <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '6px' }}>
                       <div style={{ fontSize: '11.5px', fontWeight: '700', color: '#475569', marginBottom: '4px' }}>
-                        참석자 ({attendees.length}명):
+                        참석자 ({attendees.length}{sched.max_attendees ? `/${sched.max_attendees}` : ''}명):
                       </div>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
                         {attendees.length > 0 ? (
