@@ -41,6 +41,7 @@
 2. Secret Manager에 `MOYOUNG_MAIL_CONFIG`를 JSON으로 설정한다. 필드: `serviceId`, `templateId`, `publicKey`, `privateKey`, `recipients`(키=기존 아이디, 값=해당 이메일), `alertRecipient`(잠금 알림 받을 메일), `unlockTemplateId`. 비밀값은 소스/문서/채팅에 넣지 않는다. 기존 EmailJS 계정에서 서버 API 사용을 허용하고 템플릿의 수신자와 코드 변수를 확인한다. 실제 메일 전송은 아직 시험하지 않았다.
 3. `npm run build`와 로컬 보안 테스트를 통과시킨다. Firebase Functions 배포에는 프로젝트의 결제/권한 준비가 필요하다. 아직 실계정 결제 설정은 확인하지 않았다.
 4. 운영 clubs에는 총무 이름만 있고 `manager_ids`가 없다. 배포 직전 `node scratch/assign-manager-ids.mjs`로 미리보기 후 승인받아 `--apply`로 기록한다(이름이 유일하지 않거나 이미 기록된 경우 중단). 2026-09-28 사용자 승인으로 운영 4개 모영에 기록 완료(총무 12자리, 이전 상태는 scratch/clubs-before-manager-ids-*.json).
+   - 참석·투표 회원별 저장(2026-09-29): 배포 때 `firestore:indexes`도 함께 배포하고, `node scratch/migrate-participation.mjs` 미리보기 후 승인받아 `--apply`로 기존 배열을 옮긴다(옮기지 않아도 첫 참여 때 자동 이전).
 5. 사용자 배포 승인 후 `functions:api,functions:cleanApiSessions`를 먼저 배포한다. 기존 이메일 검증용 Functions 전체를 이 작업에서 배포할 필요는 없다.
 6. 짧은 점검 시간에 새 Hosting과 `firestore:rules,storage`를 함께 배포하고 실제 로그인/OTP/관리자/참석을 확인한다. 배포는 원자적이지 않으므로 잠깐 구버전 화면 요청이 실패할 수 있다. 구세션은 의도적으로 만료되어 다시 로그인해야 한다. Hosting만 배포하고 공개 DB 규칙을 남기면 보안 전환이 완료되지 않는다.
 7. 운영 REST DB 접근 거부, 서버 API/메일/오류 로그를 검증한다. 장애 시 서버 코드/Hosting을 수정·복구하되 Rules를 전체 공개로 되돌리지 않는다.

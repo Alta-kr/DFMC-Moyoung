@@ -1,7 +1,7 @@
 import { readLegacyFeedPage } from '../lib/legacyFeedReader.js';
 import { setLegacyManagers, proposeHandover, agreeHandover, pendingHandovers } from '../lib/legacyManagers.js';
 import { samePerson, isClubManager } from '../lib/identity.js';
-import { saveLegacyParticipation } from '../lib/legacyParticipation.js';
+import { saveParticipation, participantsOf, participantsByClub, withParticipants, createWithParticipants } from '../src/participation.js';
 import { parseMoyoungDate, scheduleTimes } from '../src/dateTime.js';
 import {
   collection,
@@ -188,7 +188,8 @@ export async function handleLegacyApi(db: any, requestUrl: URL, method: string, 
           const schedules=await Promise.all((result.schedules || []).map(async (schedule:any)=>{
             if(!user) return schedule;
             const source=await getDoc(doc(db,'club_schedules',schedule.sourceId));
-            return {...schedule,is_attending:(source.data()?.attendees || []).some((entry:any)=>samePerson(entry,user))};
+            const attendees=await participantsOf(db,'club_schedules',schedule.sourceId,source.data());
+            return {...schedule,attendees_count:attendees.length,is_attending:attendees.some((entry:any)=>samePerson(entry,user))};
           }));
           const welcome=await welcomeFor(db,user,result.welcome);
           return makeResponse({...result,schedules,highlightedSchedules:schedules,welcome,welcomeMessage:welcome});
@@ -222,17 +223,15 @@ export async function handleLegacyApi(db: any, requestUrl: URL, method: string, 
 
         // 4. Imminent Schedules Highlights (각 모영당 가장 임박한 모집 중 일정 1개씩 추출)
         const now = Date.now();
-        // 당일 일정도 포함하기 위해 최근 12시간 전까지는 유효 범위로 인정
-        const threshold = now - 12 * 60 * 60 * 1000;
-
-        const parseSchedTimestamp = (dateStr?: string): number => parseMoyoungDate(dateStr) ?? NaN;
 
         // 모영별(모영 이름 기준)로 일정 그룹화하여 각 모영당 가장 임박한 1개만 선정
         const schedulesByClub = new Map<string, any[]>();
         schedSnap.docs.forEach(d => {
           const s = d.data();
-          const t = parseSchedTimestamp(s.event_date);
-          if (isNaN(t) || t < threshold) return;
+          // 종료 시각이 지난 일정은 제외한다(피드·참석 마감과 같은 기준, 진행 중인 일정은 유지).
+          const { startsAtMs, endsAtMs } = scheduleTimes(s);
+          if (startsAtMs === null || endsAtMs === null || endsAtMs <= now) return;
+          const t = startsAtMs;
 
           // 해당 일정이 속한 모영 찾기
           let cl = clubs.find(c => Number(c.id) === Number(s.club_id) || String(c.id) === String(s.club_id));
@@ -243,6 +242,7 @@ export async function handleLegacyApi(db: any, requestUrl: URL, method: string, 
           if (!schedulesByClub.has(clubKey)) schedulesByClub.set(clubKey, []);
           schedulesByClub.get(clubKey)!.push({
             ...s,
+            source_doc_id: d.id,
             club_id: cl.id,
             club_name: cl.name,
             club_icon: cl.icon,
@@ -258,11 +258,11 @@ export async function handleLegacyApi(db: any, requestUrl: URL, method: string, 
         }
 
         const imminentSchedules: any[] = [];
-        schedulesByClub.forEach((list) => {
-          // 각 모영별 일정 중 가장 날짜가 빠른(가장 임박한) 단 1개만 선정
-          list.sort((a, b) => a.timestamp - b.timestamp);
-          const earliest = list[0];
-          const attendees = Array.isArray(earliest.attendees) ? earliest.attendees : [];
+        // 각 모영별 일정 중 가장 날짜가 빠른(가장 임박한) 단 1개만 선정
+        const earliestList = [...schedulesByClub.values()].map(list => list.sort((a, b) => a.timestamp - b.timestamp)[0]);
+        const attendeeLists = await Promise.all(earliestList.map(item => participantsOf(db, 'club_schedules', item.source_doc_id, item)));
+        earliestList.forEach((earliest, index) => {
+          const attendees = attendeeLists[index];
           const isAttending = attendees.some((a: any) => samePerson(a, currentUser));
           imminentSchedules.push({
             id: earliest.id,
@@ -367,6 +367,10 @@ export async function handleLegacyApi(db: any, requestUrl: URL, method: string, 
             getDocs(query(collection(db, 'club_chat'), clubIdFilter))
           ]);
 
+          // 회원별로 저장된 참석·투표를 모영 단위로 한 번에 읽는다.
+          const [votesByPoll, attendeesBySched] = await Promise.all([
+            participantsByClub(db, 'club_polls', clubId), participantsByClub(db, 'club_schedules', clubId)]);
+
           // Comments (already filtered by club_id)
           const rawComments = commSnap.docs.map(d => d.data());
 
@@ -426,7 +430,7 @@ export async function handleLegacyApi(db: any, requestUrl: URL, method: string, 
 
           // Polls with votes calculation and comments
           const polls = pollsSnap.docs
-            .map(d => d.data())
+            .map(d => withParticipants('club_polls', d.data(), votesByPoll))
             .map(p => {
               const votes = p.votes || [];
               const optionCounts: Record<string, number> = {};
@@ -455,7 +459,7 @@ export async function handleLegacyApi(db: any, requestUrl: URL, method: string, 
 
           // Schedules with attendees and comments
           const schedules = schedSnap.docs
-            .map(d => d.data())
+            .map(d => withParticipants('club_schedules', d.data(), attendeesBySched))
             .map(s => {
               const schedComments = (commentsBySched.get(Number(s.id)) || [])
                 .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
@@ -775,7 +779,7 @@ export async function handleLegacyApi(db: any, requestUrl: URL, method: string, 
             created_at: new Date().toISOString()
           };
 
-          await setDoc(doc(db, 'club_polls', `poll_${newPoll.id}`), newPoll);
+          await createWithParticipants(db, 'club_polls', `poll_${newPoll.id}`, newPoll);
           return makeResponse({ message: '투표가 생성되었습니다.', poll: newPoll });
         }
 
@@ -803,14 +807,14 @@ export async function handleLegacyApi(db: any, requestUrl: URL, method: string, 
         const pollVoteMatch = subPath.match(/^\/polls\/(\d+)\/vote$/);
         if (pollVoteMatch && method === 'POST') {
           if (!currentUsername) return makeResponse({ error: '로그인이 필요합니다.' }, 401);
-          return makeResponse(await saveLegacyParticipation(db, 'club_polls', 'poll_' + pollVoteMatch[1], clubId, currentUsername, body?.selected_option ?? body?.selectedOption ?? body?.option));
+          return makeResponse(await saveParticipation(db, 'club_polls', 'poll_' + pollVoteMatch[1], clubId, currentUsername, body?.selected_option ?? body?.selectedOption ?? body?.option));
         }
 
         // DELETE /api/clubs/:id/polls/:pollId
         const editPollMatch = subPath.match(/^\/polls\/(\d+)$/);
         if (editPollMatch && method === 'DELETE') {
           const pollId = editPollMatch[1];
-          await deleteDoc(doc(db, 'club_polls', `poll_${pollId}`));
+          await db.recursiveDelete(db.collection('club_polls').doc(`poll_${pollId}`));
           return makeResponse({ message: '투표가 삭제되었습니다.' });
         }
 
@@ -842,7 +846,7 @@ export async function handleLegacyApi(db: any, requestUrl: URL, method: string, 
             created_at: new Date().toISOString()
           };
 
-          await setDoc(doc(db, 'club_schedules', `sched_${newSched.id}`), newSched);
+          await createWithParticipants(db, 'club_schedules', `sched_${newSched.id}`, newSched, newSched.attendees);
           return makeResponse({ message: '일정이 생성되었습니다.', schedule: newSched });
         }
 
@@ -863,14 +867,14 @@ export async function handleLegacyApi(db: any, requestUrl: URL, method: string, 
         if (schedAttendMatch && method === 'POST') {
           if (!currentUsername) return makeResponse({ error: '로그인이 필요합니다.' }, 401);
           if (typeof body?.attending !== 'boolean') return makeResponse({ error: '참석 상태를 확인해주세요.' }, 400);
-          return makeResponse(await saveLegacyParticipation(db, 'club_schedules', 'sched_' + schedAttendMatch[1], clubId, currentUsername, body.attending));
+          return makeResponse(await saveParticipation(db, 'club_schedules', 'sched_' + schedAttendMatch[1], clubId, currentUsername, body.attending));
         }
 
         // DELETE /api/clubs/:id/schedules/:schedId
         const delSchedMatch = subPath.match(/^\/schedules\/(\d+)$/);
         if (delSchedMatch && method === 'DELETE') {
           const sId = delSchedMatch[1];
-          await deleteDoc(doc(db, 'club_schedules', `sched_${sId}`));
+          await db.recursiveDelete(db.collection('club_schedules').doc(`sched_${sId}`));
           return makeResponse({ message: '일정이 삭제되었습니다.' });
         }
 
@@ -1393,6 +1397,6 @@ export async function handleLegacyApi(db: any, requestUrl: URL, method: string, 
     } catch (err: any) {
       console.error('Firebase API Error for ' + pathname, err);
       const domainError = typeof err.message === 'string' && /^[가-힣]/.test(err.message);
-      return makeResponse({ error: domainError ? err.message : '요청을 처리하지 못했습니다.' }, domainError ? 400 : 500);
+      return makeResponse({ error: domainError ? err.message : '요청을 처리하지 못했습니다.' }, err.status || (domainError ? 400 : 500));
     }
 }

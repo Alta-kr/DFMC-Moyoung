@@ -22,9 +22,22 @@ export const orderBy = (...args) => ref => ref.orderBy(...args);
 export const limit = count => ref => ref.limit(count);
 export const startAfter = (...args) => ref => ref.startAfter(...args);
 export const documentId = () => FieldPath.documentId();
-export const runTransaction = (db, update) => db.runTransaction(tx => update({
-  get: async ref => snapshot(await tx.get(ref)),
-  set: (ref, data, options) => options ? tx.set(ref, clean(data), options) : tx.set(ref, clean(data)),
-  update: (ref, data) => tx.update(ref, clean(data)),
-  delete: ref => tx.delete(ref),
-}));
+// Many members joining one schedule at once contend on a single document. The SDK
+// gives up after its own attempts with ABORTED, so retry with jittered backoff.
+const contended = error => error?.code === 10 || error?.code === 'aborted' || /ABORTED|contention|lock timeout/i.test(error?.message || '');
+export const runTransaction = async (db, update) => {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await db.runTransaction(tx => update({
+        get: async ref => snapshot(await tx.get(ref)),
+        set: (ref, data, options) => options ? tx.set(ref, clean(data), options) : tx.set(ref, clean(data)),
+        update: (ref, data) => tx.update(ref, clean(data)),
+        delete: ref => tx.delete(ref),
+      }), { maxAttempts: 10 });
+    } catch (error) {
+      if (!contended(error)) throw error;
+      if (attempt >= 4) throw Object.assign(new Error('신청이 몰려 처리하지 못했습니다. 잠시 후 다시 시도해주세요.'), { status: 503 });
+      await new Promise(resolve => setTimeout(resolve, 100 * 2 ** attempt + Math.random() * 200));
+    }
+  }
+};

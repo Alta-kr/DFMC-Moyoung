@@ -32,7 +32,7 @@ test('name/id sessions, server authorization, OTP replay and closed database',as
   assert.equal((await call('/api/clubs/1/info','POST',{name:'탈취'},member.token)).status,403);
   const votes=await Promise.all(['A','B'].map(option=>call('/api/clubs/1/polls/1/vote','POST',{option},member.token)));
   assert.ok(votes.every(result=>result.ok));
-  assert.equal((await db.doc('club_polls/poll_1').get()).data().votes.length,1);
+  assert.equal((await db.collection('club_polls/poll_1/ballots').get()).size,1);
   const guest=await (await call('/api/auth/guest-login','POST',{name:'손님',acquaintance_name:'친구'})).json();
   await assert.rejects(call('/api/clubs/1','GET',{},guest.token),error=>error.status===403);
   assert.equal((await call('/api/clubs/1/schedules/1/attend','POST',{attending:true},guest.token)).status,200);

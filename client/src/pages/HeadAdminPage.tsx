@@ -203,7 +203,9 @@ export const HeadAdminPage: React.FC<HeadAdminPageProps> = ({ user, onBackToLobb
             setPopupTitle(current.title || '');
             setPopupContent(current.content_text || '');
             setPopupImageUrl(current.image_url || '');
-            setPopupEndDate(current.end_date ? current.end_date.slice(0, 16) : '');
+            // 날짜만 저장된 종료일은 그날 끝으로 보여준다(datetime-local은 시각이 필요).
+            const endDate = String(current.end_date || '');
+            setPopupEndDate(/^\d{4}-\d{2}-\d{2}$/.test(endDate) ? endDate + 'T23:59' : endDate.slice(0, 16));
             setPopupIsActive(!!current.is_active);
           }
         })
@@ -731,6 +733,7 @@ export const HeadAdminPage: React.FC<HeadAdminPageProps> = ({ user, onBackToLobb
 
   // --- 6. Media Admin Handlers ---
   const handleToggleMediaAdmin = async (userId: number, action: 'appoint' | 'dismiss') => {
+    if (action === 'dismiss' && !confirm('미디어 관리자 권한을 해임하시겠습니까?')) return;
     try {
       const res = await fetch('/api/head-admin/media-admins', {
         method: 'POST',
