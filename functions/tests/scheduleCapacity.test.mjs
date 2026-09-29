@@ -20,10 +20,11 @@ test('schedule capacity holds under concurrent attend',async()=>{
   const id=created.schedule.id;
   const results=await Promise.all(tokens.slice(1).map(t=>call(`/api/clubs/41/schedules/${id}/attend`,'POST',{attending:true},t)));
   const ok=results.filter(r=>r.status===200).length, full=results.filter(r=>r.status===409).length;
-  assert.equal(ok,3); assert.equal(full,7);
+  assert.equal(ok,4); assert.equal(full,6);
   const count=(await db.collection(`club_schedules/sched_${id}/attendance`).get()).size;
   assert.equal(count,4);
-  const again=await call(`/api/clubs/41/schedules/${id}/attend`,'POST',{attending:true},tokens[0]);
-  assert.equal(again.status,200);
+  // 작성자는 자동 참석하지 않으므로 정원이 찬 뒤에는 작성자도 거부된다.
+  const creator=await call(`/api/clubs/41/schedules/${id}/attend`,'POST',{attending:true},tokens[0]);
+  assert.equal(creator.status,409);
  } finally { await deleteApp(app); }
 });

@@ -23,7 +23,7 @@ test('20 members attending and voting at once: all succeed, no duplicates, legac
    const ms=Date.now()-started;
    assert.deepEqual(results.filter(s=>s!==200),[],`round ${round}`);
    const attendees=(await db.collection(`club_schedules/sched_${id}/attendance`).get()).docs.map(d=>d.data().user_id);
-   assert.equal(attendees.length,20,'creator + 19 others, creator counted once');
+   assert.equal(attendees.length,20,'20 members, each counted once');
    assert.equal(new Set(attendees).size,20);
    assert.ok(ms<15000,`round ${round} took ${ms}ms`);
    console.log(`round ${round}: 20 concurrent attends in ${ms}ms`);

@@ -844,9 +844,8 @@ export async function handleLegacyApi(db: any, requestUrl: URL, method: string, 
             location: location || '미정',
             fee_info: fee_info || '무료',
             max_attendees,
-            attendees: [
-              { user_id: user.id, user_name: user.name ?? '회원', user_cell: user.cell_name ?? '', joined_at: new Date().toISOString() }
-            ],
+            // 작성자도 다른 회원처럼 직접 참석 신청한다.
+            attendees: [],
             is_pinned: 1,
             creator_name: user.name ?? '회원',
             created_at: new Date().toISOString()
