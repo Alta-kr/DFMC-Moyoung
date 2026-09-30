@@ -3,6 +3,7 @@ import { setLegacyManagers, proposeHandover, agreeHandover, pendingHandovers } f
 import { samePerson, isClubManager } from '../lib/identity.js';
 import { saveParticipation, participantsOf, participantsByClub, withParticipants, createWithParticipants } from '../src/participation.js';
 import { parseMoyoungDate, scheduleTimes } from '../src/dateTime.js';
+import { findCell } from '../src/cellName.js';
 import {
   collection,
   doc,
@@ -311,9 +312,8 @@ export async function handleLegacyApi(db: any, requestUrl: URL, method: string, 
         if (!currentUsername) return makeResponse({ error: '로그인이 필요합니다.' }, 401);
         if (typeof newCellName !== 'string' || !newCellName.trim()) return makeResponse({ error: '변경할 셀 이름을 입력해주세요.' }, 400);
 
-        const cleanCell = newCellName.trim().replace(/\s+/g, '');
         const cellsSnap = await getDocs(collection(db, 'cells'));
-        const matched = cellsSnap.docs.find(d => d.data().name.replace(/\s+/g, '') === cleanCell);
+        const matched = findCell(cellsSnap.docs, newCellName);
 
         if (!matched) {
           return makeResponse({ error: '교회에 등록된 공식 셀 이름이 아닙니다.' }, 400);

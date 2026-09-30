@@ -1,4 +1,5 @@
 import { randomBytes, randomInt, createHash, timingSafeEqual } from 'node:crypto';
+import { findCell } from './cellName.js';
 const hash = value => createHash('sha256').update(value).digest('hex');
 const randomToken = () => randomBytes(32).toString('base64url');
 export const publicUser = user => Object.fromEntries(['id','username','name','cell_name','role','is_guest','cell_verified','created_at'].filter(key => user[key] !== undefined).map(key => [key,user[key]]));
@@ -135,7 +136,7 @@ export async function authenticate(db, path, body, ip, mail) {
       consent_version:CONSENT_VERSION, consent_items:CONSENT_ITEMS, consent_agreed_at:now };
     if (!guest && !body.is_acquaintance) {
       const cells = await db.collection('cells').get();
-      const matched = cells.docs.find(doc => doc.data().name?.replace(/\s/g,'') === cell.replace(/\s/g,''));
+      const matched = findCell(cells.docs, cell);
       if (!matched) fail(400,'등록된 셀을 선택해주세요.');
       user.cell_name = matched.data().name;
     }
