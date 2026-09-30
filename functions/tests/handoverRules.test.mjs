@@ -13,6 +13,7 @@ test('handover approval counts and self delegation',async()=>{
   await db.doc('cells/base').set({id:1,name:'둔산제일교회'});
   await Promise.all(['a','b','c','d','e'].map((n,i)=>db.doc('users/ho'+n).set(u(7100+i,'ho'+n))));
   await db.doc('users/hog').set(u(7199,'hog',{role:'guest',is_guest:true}));
+  await db.doc('users/hom').set(u(7198,'hom',{role:'media_admin'}));
   await db.doc('clubs/71').set({id:71,name:'규칙',manager_ids:['7100'],manager_names:'hoa'});
   const t={}; for(const n of ['a','b','c','d','e']) t[n]=(await (await call('/api/auth/login','POST',{username:'ho'+n,name:'ho'+n})).json()).token;
   const ids=async()=>(await db.doc('clubs/71').get()).data().manager_ids;
@@ -40,5 +41,10 @@ test('handover approval counts and self delegation',async()=>{
   assert.equal((await call('/api/clubs/71/handover/delegate','POST',{targetUserId:7104},t.b)).status,403);
   assert.equal((await call('/api/clubs/71/handover/delegate','POST',{targetUserId:7199},t.a)).status,400);
   assert.equal((await call('/api/clubs/71/handover/delegate','POST',{targetUserId:7103},t.a)).status,400);
+  // 관리자는 선임·위임 대상 목록에 없고, 요청해도 거부된다.
+  const members=(await (await call('/api/clubs/71/members','GET',{},t.a)).json()).members.map(m=>m.id);
+  assert.ok(!members.includes(7198)); assert.ok(members.includes(7104));
+  assert.equal((await call('/api/clubs/71/handover/delegate','POST',{targetUserId:7198},t.a)).status,400);
+  assert.equal((await call('/api/clubs/71/handover/propose','POST',{targetUserId:7198,actionType:'appoint'},t.a)).status,400);
  } finally { await deleteApp(app); }
 });

@@ -29,6 +29,8 @@ export async function setLegacyManagers(db: Firestore, clubId: string, actorKey:
 // 총무 자율 위임: 현직 총무 min(2, 인원)명 동의 시 manager_ids 반영.
 const HANDOVER='club_handover_votes';
 const isGuest=(user:any)=>!user || user.role==='guest' || Boolean(user.is_guest);
+// 관리자는 이미 모든 모영을 관리할 수 있어 총무로 새로 세우지 않는다.
+const isAdmin=(user:any)=>['server_admin','head_admin','media_admin'].includes(user?.role);
 async function userRefs(db: Firestore, ids: string[]) {
   const results=await Promise.all(ids.map(id=>getDocs(query(collection(db,'users'),where('id','==',Number(id))))));
   if(results.some(result=>result.size!==1)) throw new Error('회원 ID를 확인해주세요.');
@@ -55,6 +57,7 @@ async function settleHandover(db: Firestore, clubId: string, actorKey: string, v
     let vote: any;
     if(create) {
       if(!targetUser.exists() || isGuest(targetUser.data())) throw new Error('게스트는 총무가 될 수 없습니다.');
+      if(create.action==='appoint' && isAdmin(targetUser.data())) throw new Error('관리자는 총무로 선임할 수 없습니다.');
       vote={id:Number(voteRef.id.replace('handover_','')),club_id:Number(clubId),proposer_id:Number(actorId),proposer_name:String(actor.data()?.name??''),target_user_id:Number(target),target_user_name:String(targetUser.data()?.name??''),action_type:create.action,agreed_user_ids:[actorId],status:'pending',created_at:new Date().toISOString()};
       if(!nextManagers(vote,current)) throw new Error(create.action==='appoint'?'이미 총무이거나 총무가 3명입니다.':'현직 총무가 아니거나 마지막 총무입니다.');
     } else {
@@ -112,6 +115,7 @@ export async function delegateManager(db: Firestore, clubId: string, actorKey: s
     const actorId=String(actor.data()?.id ?? '');
     if(!club.exists() || !actor.exists() || isGuest(actor.data()) || !current.includes(actorId)) throw new Error('현직 총무만 권한을 위임할 수 있습니다.');
     if(!targetUser.exists() || isGuest(targetUser.data())) throw new Error('게스트에게는 위임할 수 없습니다.');
+    if(isAdmin(targetUser.data())) throw new Error('관리자에게는 위임할 수 없습니다.');
     if(current.includes(target)) throw new Error('이미 총무인 성도입니다.');
     const ids=current.map(id=>id===actorId?target:id);
     const users=await Promise.all(ids.map(id=>id===target?Promise.resolve(targetUser):tx.get(refs.get(id)!)));

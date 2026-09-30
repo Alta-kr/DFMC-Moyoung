@@ -343,7 +343,10 @@ export async function handleLegacyApi(db: any, requestUrl: URL, method: string, 
           const club=await getDoc(doc(db,'clubs',String(clubId)));
           if(!club.exists() || !isClubManager(club.data(),actor)) return makeResponse({error:'총무 권한이 필요합니다.'},403);
           const users=await getDocs(collection(db,'users'));
-          return makeResponse({members:users.docs.map(d=>d.data()).filter(u=>u.role!=='guest'&&!u.is_guest).map(u=>({id:u.id,name:u.name,cell_name:u.cell_name??''})).sort((a,b)=>a.name.localeCompare(b.name,'ko'))});
+          // 관리자(서버·전체·미디어)는 총무 선임·위임 대상 목록에서 뺀다. 이미 이 모영 총무라면 해임할 수 있게 남긴다.
+          const currentManagers=(club.data().manager_ids ?? club.data().managerIds ?? []).map(String);
+          const adminRoles=['server_admin','head_admin','media_admin'];
+          return makeResponse({members:users.docs.map(d=>d.data()).filter(u=>u.role!=='guest'&&!u.is_guest&&(!adminRoles.includes(u.role)||currentManagers.includes(String(u.id)))).map(u=>({id:u.id,name:u.name,cell_name:u.cell_name??''})).sort((a,b)=>a.name.localeCompare(b.name,'ko'))});
         }
         // GET /api/clubs/:id
         if (!subPath && method === 'GET') {
