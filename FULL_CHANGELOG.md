@@ -11,7 +11,7 @@
 
 ## 2026-09-30 사이트 주소 QR
 
-- 홈 화면 맨 아래에 https://dfmc-moyoung.com QR과 주소를 넣었다. QR은 `client/public/site-qr.svg` 정적 파일이다(`npx qrcode@1.5.4 -t svg -e M -q 2`로 생성, 외부 호출 없음). www 주소는 연결되어 있지 않다.
+- 홈 화면 맨 아래에 https://dfmc-moyoung.com QR과 주소를 넣었다. 평소엔 접혀 있고, 맨 아래에서 한 번 더 내리면(휠·터치로 끌어올리기 누적 120px) 튕기는 애니메이션과 함께 펼쳐진다. 움직임 줄이기 설정이면 애니메이션 없이 펼친다. QR은 `client/public/site-qr.svg` 정적 파일이다(`npx qrcode@1.5.4 -t svg -e M -q 2`로 생성, 외부 호출 없음). www 주소는 연결되어 있지 않다.
 
 ## 2026-09-30 셀 이름 입력 완화
 

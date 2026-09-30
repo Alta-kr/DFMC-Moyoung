@@ -265,6 +265,29 @@ body {
   animation: fadeIn 0.25s ease-out forwards;
 }
 
+/* 홈 맨 아래에서 한 번 더 당기면 튕기듯 나타나는 사이트 주소 QR */
+.site-qr-footer {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.35s ease-out;
+}
+.site-qr-footer.is-open {
+  max-height: 200px;
+}
+.site-qr-footer.is-open .site-qr-inner {
+  animation: qrBounceIn 0.7s cubic-bezier(0.22, 1.4, 0.36, 1) both;
+}
+@keyframes qrBounceIn {
+  0% { opacity: 0; transform: translateY(40px) scale(0.9); }
+  60% { opacity: 1; transform: translateY(-8px) scale(1.02); }
+  80% { transform: translateY(3px) scale(0.99); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .site-qr-footer { transition: none; }
+  .site-qr-footer.is-open .site-qr-inner { animation: none; }
+}
+
 /* Modal Backdrop */
 .modal-overlay {
   position: fixed;

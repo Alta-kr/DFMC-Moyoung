@@ -63,6 +63,39 @@ export const LobbyPage: React.FC<LobbyPageProps> = ({ user, onUpdateUser, onNavi
   const [guestError, setGuestError] = useState('');
   const [pendingSchedForGuest, setPendingSchedForGuest] = useState<ScheduleHighlight | null>(null);
 
+  // 페이지 맨 아래에서 더 내리는 동작(휠, 터치로 끌어올리기)이 쌓이면 QR을 연다.
+  const [qrOpen, setQrOpen] = useState(false);
+  const qrFooterRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (qrOpen) {
+      const timer = window.setTimeout(() => qrFooterRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }), 60);
+      return () => window.clearTimeout(timer);
+    }
+    const atBottom = () => window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 2;
+    let pull = 0, touchY: number | null = null;
+    const add = (delta: number) => {
+      if (!atBottom() || delta <= 0) { pull = 0; return; }
+      pull += delta;
+      if (pull > 120) setQrOpen(true);
+    };
+    const onWheel = (e: WheelEvent) => add(e.deltaY);
+    const onTouchStart = (e: TouchEvent) => { touchY = e.touches[0]?.clientY ?? null; pull = 0; };
+    const onTouchMove = (e: TouchEvent) => {
+      const y = e.touches[0]?.clientY;
+      if (touchY === null || y === undefined) return;
+      add(touchY - y);
+      touchY = y;
+    };
+    window.addEventListener('wheel', onWheel, { passive: true });
+    window.addEventListener('touchstart', onTouchStart, { passive: true });
+    window.addEventListener('touchmove', onTouchMove, { passive: true });
+    return () => {
+      window.removeEventListener('wheel', onWheel);
+      window.removeEventListener('touchstart', onTouchStart);
+      window.removeEventListener('touchmove', onTouchMove);
+    };
+  }, [qrOpen]);
+
   const loadingAttendRef = useRef<number | null>(null);
   loadingAttendRef.current = loadingAttendId;
 
@@ -750,10 +783,14 @@ export const LobbyPage: React.FC<LobbyPageProps> = ({ user, onUpdateUser, onNavi
         </div>
       </div>
 
-      {/* 7. 사이트 주소 QR (client/public/site-qr.svg, 빌드에 포함된 정적 이미지) */}
-      <footer style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', paddingTop: '8px', color: 'var(--color-text-muted)' }}>
-        <img src="/site-qr.svg" alt="dfmc-moyoung.com QR 코드" width={96} height={96} style={{ background: '#ffffff', borderRadius: '8px' }} />
-        <span style={{ fontSize: '12px', fontWeight: '700' }}>dfmc-moyoung.com</span>
+      {/* 7. 사이트 주소 QR (client/public/site-qr.svg). 평소엔 숨기고 맨 아래에서 한 번 더 당기면 튕기듯 나타난다. */}
+      <footer ref={qrFooterRef} className={`site-qr-footer${qrOpen ? ' is-open' : ''}`} aria-hidden={!qrOpen}>
+        <div>
+          <div className="site-qr-inner" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', padding: '8px 0 4px', color: 'var(--color-text-muted)' }}>
+            <img src="/site-qr.svg" alt="dfmc-moyoung.com QR 코드" width={96} height={96} style={{ background: '#ffffff', borderRadius: '8px' }} />
+            <span style={{ fontSize: '12px', fontWeight: '700' }}>dfmc-moyoung.com</span>
+          </div>
+        </div>
       </footer>
 
       {/* Login & Guest Auth Modal on Lobby Attendance Click */}
