@@ -15,7 +15,7 @@ import {
   deleteDoc,
   query,
   where,
-  orderBy, runTransaction
+  orderBy, limit, runTransaction
 } from '../src/adminFirestore.js';
 
 // Helper to make JSON Response
@@ -1344,6 +1344,44 @@ export async function handleLegacyApi(db: any, requestUrl: URL, method: string, 
           return makeResponse({ message: '게스트 계정이 성공적으로 삭제되었습니다.' });
         }
         return makeResponse({ error: '삭제할 게스트를 찾을 수 없습니다.' }, 404);
+      }
+
+      // 선택한 회원 계정을 삭제한다. 서버관리자와 본인은 지울 수 없고, 모영 총무 명단에서도 함께 뺀다.
+      if (pathname === '/api/server-admin/delete-users') {
+        if (method !== 'POST') return makeResponse({ error: '지원하지 않는 요청입니다.' }, 405);
+        const requested = body?.usernames;
+        if (!Array.isArray(requested) || requested.length === 0 || requested.length > 300 || requested.some((u: any) => typeof u !== 'string' || !u || u.includes('/'))) {
+          return makeResponse({ error: '삭제할 회원을 선택해주세요.' }, 400);
+        }
+        const snaps = await Promise.all([...new Set(requested as string[])].map(u => getDoc(doc(db, 'users', u))));
+        const targets = snaps.filter(s => s.exists());
+        if (targets.some(s => s.data().role === 'server_admin' || s.id === currentUsername)) {
+          return makeResponse({ error: '서버관리자 계정은 삭제할 수 없습니다.' }, 400);
+        }
+        const removedIds = new Set(targets.map(s => String(s.data().id)));
+        const removedNames = new Set(targets.map(s => String(s.data().name ?? '')));
+        const clubsSnap = await getDocs(collection(db, 'clubs'));
+        for (const club of clubsSnap.docs) {
+          const data = club.data();
+          const ids = Array.isArray(data.manager_ids ?? data.managerIds) ? (data.manager_ids ?? data.managerIds).map(String) : null;
+          if (ids) {
+            if (!ids.some((id: string) => removedIds.has(id))) continue;
+            const remaining = ids.filter((id: string) => !removedIds.has(id));
+            const managers = await Promise.all(remaining.map((id: string) => getDocs(query(collection(db, 'users'), where('id', '==', Number(id)), limit(1)))));
+            await updateDoc(club.ref, { manager_ids: remaining, manager_names: managers.map(m => String(m.docs[0]?.data().name ?? '')).filter(Boolean).join(', ') });
+          } else if (typeof data.manager_names === 'string') {
+            // 예전 모영은 총무를 이름으로만 저장했다.
+            const names = data.manager_names.split(',').map((n: string) => n.trim()).filter(Boolean);
+            const remaining = names.filter((n: string) => !removedNames.has(n));
+            if (remaining.length !== names.length) await updateDoc(club.ref, { manager_names: remaining.join(', ') });
+          }
+        }
+        for (let i = 0; i < targets.length; i += 400) {
+          const batch = db.batch();
+          targets.slice(i, i + 400).forEach(s => batch.delete(s.ref));
+          await batch.commit();
+        }
+        return makeResponse({ message: `회원 ${targets.length}명을 삭제했습니다.`, deleted: targets.map(s => s.id) });
       }
 
       if (pathname === '/api/server-admin/set-role') {

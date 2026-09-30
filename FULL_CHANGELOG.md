@@ -1,5 +1,9 @@
 > 최종 사용자 수정: 이메일 OTP는 서버 관리자만 사용한다. 미디어·전체 관리자와 총무는 실명+아이디.
 
+## 2026-09-30 서버관리자 회원 선택 삭제
+
+- 서버 콘솔 성도 목록에 체크박스, [검색 결과 전체 선택], [선택 N명 삭제]를 넣었다. `POST /api/server-admin/delete-users` {usernames}(최대 300명, 서버관리자·본인 제외). 삭제된 회원은 모영 총무 명단(manager_ids, 이름만 저장된 예전 모영은 manager_names)에서도 빠진다. 세션은 회원 문서가 없어져 바로 끊긴다. 테스트: functions/tests/deleteUsers.test.mjs.
+
 ## 2026-09-30 사이트 주소 QR
 
 - 홈 화면 맨 아래에 https://dfmc-moyoung.com QR과 주소를 넣었다. QR은 `client/public/site-qr.svg` 정적 파일이다(`npx qrcode@1.5.4 -t svg -e M -q 2`로 생성, 외부 호출 없음). www 주소는 연결되어 있지 않다.

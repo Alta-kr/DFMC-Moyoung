@@ -48,6 +48,8 @@ export const ServerAdminPage: React.FC<ServerAdminPageProps> = ({ onNavigateLobb
     }
   });
   const [activeTab, setActiveTab] = useState<'users' | 'guests' | 'reports'>('users');
+  const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set());
+  const [deletingUsers, setDeletingUsers] = useState(false);
 
   const token = accountCache.getItem('dfmc_token');
 
@@ -124,6 +126,41 @@ export const ServerAdminPage: React.FC<ServerAdminPageProps> = ({ onNavigateLobb
       setActionError(err.message);
     }
   };
+
+  // 선택한 회원 계정 삭제(서버관리자 전용). 총무 명단에서도 함께 빠진다.
+  const handleDeleteSelectedUsers = async () => {
+    const targets = (users || []).filter((u) => selectedUsers.has(u.username));
+    if (targets.length === 0) return;
+    const preview = targets.slice(0, 10).map((u) => `${u.name}(${u.username})`).join(', ');
+    if (!confirm(`회원 ${targets.length}명을 삭제하시겠습니까?
+${preview}${targets.length > 10 ? ' 외' : ''}
+
+삭제하면 되돌릴 수 없고 바로 접속이 끊깁니다.`)) return;
+    setDeletingUsers(true);
+    try {
+      const res = await fetch('/api/server-admin/delete-users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ usernames: targets.map((u) => u.username) })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || '회원 삭제 실패');
+      setUsers((prev) => prev.filter((u) => !selectedUsers.has(u.username)));
+      setSelectedUsers(new Set());
+      setActionMessage(data.message || '회원이 삭제되었습니다.');
+      loadData();
+    } catch (err: any) {
+      setActionError(err.message);
+    } finally {
+      setDeletingUsers(false);
+    }
+  };
+
+  const toggleUser = (username: string) => setSelectedUsers((prev) => {
+    const next = new Set(prev);
+    if (next.has(username)) next.delete(username); else next.add(username);
+    return next;
+  });
 
   // Format ISO Date to Korean Format
   const formatDateTime = (iso?: string) => {
@@ -584,11 +621,39 @@ export const ServerAdminPage: React.FC<ServerAdminPageProps> = ({ onNavigateLobb
               </div>
             </div>
 
+            {/* 선택 삭제: 검색 결과 전체 선택 후 한 번에 삭제할 수 있다. 서버관리자 계정은 선택되지 않는다. */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '10px' }}>
+              <button
+                type="button"
+                onClick={() => setSelectedUsers(new Set(filteredUsers.filter((u) => u.role !== 'server_admin').map((u) => u.username)))}
+                style={{ padding: '6px 10px', fontSize: '12px', fontWeight: 700, background: '#1f2937', color: '#e5e7eb', border: '1px solid #374151', borderRadius: 'var(--radius-md)', cursor: 'pointer' }}
+              >
+                검색 결과 전체 선택
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedUsers(new Set())}
+                disabled={selectedUsers.size === 0}
+                style={{ padding: '6px 10px', fontSize: '12px', fontWeight: 700, background: '#1f2937', color: '#9ca3af', border: '1px solid #374151', borderRadius: 'var(--radius-md)', cursor: selectedUsers.size === 0 ? 'not-allowed' : 'pointer' }}
+              >
+                선택 해제
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteSelectedUsers}
+                disabled={selectedUsers.size === 0 || deletingUsers}
+                style={{ padding: '6px 10px', fontSize: '12px', fontWeight: 700, background: selectedUsers.size === 0 ? '#374151' : '#dc2626', color: 'white', border: 'none', borderRadius: 'var(--radius-md)', cursor: selectedUsers.size === 0 || deletingUsers ? 'not-allowed' : 'pointer' }}
+              >
+                {deletingUsers ? '삭제 중...' : `선택 ${selectedUsers.size}명 삭제`}
+              </button>
+            </div>
+
             {/* User Table */}
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left', whiteSpace: 'nowrap' }}>
                 <thead>
                   <tr style={{ borderBottom: '1px solid #374151', color: '#9ca3af', fontSize: '12px' }}>
+                    <th style={{ padding: '10px 12px', width: '32px' }}></th>
                     <th style={{ padding: '10px 12px' }}>이름</th>
                     <th style={{ padding: '10px 12px' }}>아이디</th>
                     <th style={{ padding: '10px 12px' }}>소속 셀</th>
@@ -598,7 +663,7 @@ export const ServerAdminPage: React.FC<ServerAdminPageProps> = ({ onNavigateLobb
                 <tbody>
                   {loading && users.length === 0 ? (
                     <tr>
-                      <td colSpan={4} style={{ textAlign: 'center', padding: '40px 12px', color: '#9ca3af' }}>
+                      <td colSpan={5} style={{ textAlign: 'center', padding: '40px 12px', color: '#9ca3af' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
                           <RefreshCw size={24} className="animate-spin" style={{ color: '#38bdf8' }} />
                           <span style={{ fontSize: '13px', fontWeight: '500' }}>성도 명단을 빠르게 불러오는 중...</span>
@@ -607,13 +672,22 @@ export const ServerAdminPage: React.FC<ServerAdminPageProps> = ({ onNavigateLobb
                     </tr>
                   ) : filteredUsers.length === 0 ? (
                     <tr>
-                      <td colSpan={4} style={{ textAlign: 'center', padding: '30px 12px', color: '#6b7280' }}>
+                      <td colSpan={5} style={{ textAlign: 'center', padding: '30px 12px', color: '#6b7280' }}>
                         {searchTerm ? '검색 결과가 없습니다.' : '등록된 성도가 없습니다.'}
                       </td>
                     </tr>
                   ) : (
                     filteredUsers.map((u) => (
                     <tr key={u.id} style={{ borderBottom: '1px solid #1f2937' }}>
+                      <td style={{ padding: '12px' }}>
+                        <input
+                          type="checkbox"
+                          aria-label={`${u.name} 선택`}
+                          checked={selectedUsers.has(u.username)}
+                          disabled={u.role === 'server_admin'}
+                          onChange={() => toggleUser(u.username)}
+                        />
+                      </td>
                       <td style={{ padding: '12px', fontWeight: '700', color: '#f3f4f6' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                           <span>{u.name}</span>
