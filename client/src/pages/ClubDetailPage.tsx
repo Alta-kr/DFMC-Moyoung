@@ -103,7 +103,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
 
   // Handover Modal
   const [showHandoverModal, setShowHandoverModal] = useState(false);
-  const [handoverActionType, setHandoverActionType] = useState<'appoint' | 'dismiss'>('appoint');
+  const [handoverActionType, setHandoverActionType] = useState<'appoint' | 'dismiss' | 'delegate'>('appoint');
   const [handoverTargetUserId, setHandoverTargetUserId] = useState<number | null>(null);
   const [handoverSearch, setHandoverSearch] = useState('');
 
@@ -677,11 +677,17 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
       flashErr('대상 성도를 선택해주세요.');
       return;
     }
+    const delegating = handoverActionType === 'delegate';
+    if (delegating) {
+      const target = (data?.churchMembers || []).find(m => m.id === handoverTargetUserId);
+      if (!confirm(`내 총무 권한을 ${target?.name ?? '선택한 성도'}님에게 위임하시겠습니까?
+위임하면 나는 총무에서 빠집니다.`)) return;
+    }
     try {
-      const res = await fetch(`/api/clubs/${clubId}/handover/propose`, {
+      const res = await fetch(`/api/clubs/${clubId}/handover/${delegating ? 'delegate' : 'propose'}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ targetUserId: handoverTargetUserId, actionType: handoverActionType }),
+        body: JSON.stringify(delegating ? { targetUserId: handoverTargetUserId } : { targetUserId: handoverTargetUserId, actionType: handoverActionType }),
       });
       const resData = await res.json();
       if (!res.ok) throw new Error(resData.error);
@@ -929,6 +935,8 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
   const managers = (club.manager_names || '').split(',').map(s => s.trim()).filter(Boolean);
   const isHost = isManager || user.role === 'head_admin' || user.role === 'server_admin';
   const canModerateComments = isHost || user.role === 'media_admin';
+  // 실제 총무 명단에 있는 사람만 자기 권한을 위임할 수 있다(관리자 권한과 별개).
+  const isRealManager = managerIds(club).includes(String(user.id));
 
   const isPollClosed = (p: ClubPollItem) => Boolean(p.is_closed || p.is_expired || (p.end_date && (parseMoyoungDate(p.end_date, true) ?? 0) <= now));
 
@@ -3612,12 +3620,30 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
                 >
                   총무 사임/해임 (최소 1인)
                 </button>
+                {isRealManager && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setHandoverActionType('delegate');
+                      setHandoverTargetUserId(null);
+                    }}
+                    className={handoverActionType === 'delegate' ? 'btn btn-sm btn-primary' : 'btn btn-sm btn-secondary'}
+                    style={{ flex: 1, padding: '7px' }}
+                  >
+                    내 권한 위임
+                  </button>
+                )}
               </div>
+              <p style={{ fontSize: '11.5px', color: '#64748b', margin: 0 }}>
+                {handoverActionType === 'delegate'
+                  ? '내 총무 자리를 선택한 성도에게 바로 넘깁니다. 다른 총무의 동의는 필요 없습니다.'
+                  : `총무가 1명이면 바로 반영되고, 2명이면 2명 모두, 3명이면 2명이 동의해야 반영됩니다.`}
+              </p>
 
               {/* Target Selection */}
-              {handoverActionType === 'appoint' ? (
+              {handoverActionType !== 'dismiss' ? (
                 <div>
-                  <label className="form-label">교회 성도 검색 및 선택</label>
+                  <label className="form-label">{handoverActionType === 'delegate' ? '권한을 넘겨받을 성도 선택' : '교회 성도 검색 및 선택'}</label>
                   <input
                     type="text"
                     className="form-input"
@@ -3696,7 +3722,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
                   className="btn btn-primary"
                   disabled={!handoverTargetUserId || (handoverActionType === 'appoint' && managers.length >= 3) || (handoverActionType === 'dismiss' && managers.length <= 1)}
                 >
-                  안건 발의하기
+                  {handoverActionType === 'delegate' ? '권한 위임하기' : '안건 발의하기'}
                 </button>
               </div>
             </form>

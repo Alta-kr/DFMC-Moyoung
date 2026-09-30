@@ -1,5 +1,5 @@
 import { readLegacyFeedPage } from '../lib/legacyFeedReader.js';
-import { setLegacyManagers, proposeHandover, agreeHandover, pendingHandovers } from '../lib/legacyManagers.js';
+import { setLegacyManagers, proposeHandover, agreeHandover, pendingHandovers, delegateManager } from '../lib/legacyManagers.js';
 import { samePerson, isClubManager } from '../lib/identity.js';
 import { saveParticipation, participantsOf, participantsByClub, withParticipants, createWithParticipants } from '../src/participation.js';
 import { parseMoyoungDate, scheduleTimes } from '../src/dateTime.js';
@@ -912,6 +912,10 @@ export async function handleLegacyApi(db: any, requestUrl: URL, method: string, 
         // POST /api/clubs/:id/handover/propose, /handover/:voteId/agree
         if (subPath === '/handover/propose' && method === 'POST') {
           return makeResponse(await proposeHandover(db,String(clubId),currentUsername || '',body?.targetUserId ?? body?.target_user_id,body?.actionType ?? body?.action_type));
+        }
+        // POST /api/clubs/:id/handover/delegate (내 총무 권한 위임)
+        if (subPath === '/handover/delegate' && method === 'POST') {
+          return makeResponse(await delegateManager(db,String(clubId),currentUsername || '',body?.targetUserId ?? body?.target_user_id));
         }
         const handoverAgreeMatch = subPath.match(/^\/handover\/(\d+)\/agree$/);
         if (handoverAgreeMatch && method === 'POST') {

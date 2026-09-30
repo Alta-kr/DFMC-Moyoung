@@ -1,5 +1,10 @@
 > 최종 사용자 수정: 이메일 OTP는 서버 관리자만 사용한다. 미디어·전체 관리자와 총무는 실명+아이디.
 
+## 2026-09-30 총무 권한 위임
+
+- 현직 총무가 자기 자리를 다른 성도에게 바로 넘길 수 있다(`POST /api/clubs/:id/handover/delegate`, `delegateManager`). 본인 자리만 바뀌므로 다른 총무 동의가 필요 없다. 게스트·이미 총무인 성도는 대상이 될 수 없다. 총무 관리 창에 [내 권한 위임]과 동의 규칙 안내 문구를 넣었다.
+- 선임·해임 동의 인원은 기존대로다: 총무 1명이면 혼자, 2명이면 2명 모두, 3명이면 2명. 테스트: functions/tests/handoverRules.test.mjs.
+
 ## 2026-09-30 서버관리자 회원 선택 삭제
 
 - 서버 콘솔 성도 목록에 체크박스, [검색 결과 전체 선택], [선택 N명 삭제]를 넣었다. `POST /api/server-admin/delete-users` {usernames}(최대 300명, 서버관리자·본인 제외). 삭제된 회원은 모영 총무 명단(manager_ids, 이름만 저장된 예전 모영은 manager_names)에서도 빠진다. 세션은 회원 문서가 없어져 바로 끊긴다. 테스트: functions/tests/deleteUsers.test.mjs.

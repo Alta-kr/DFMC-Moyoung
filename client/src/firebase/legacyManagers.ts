@@ -96,3 +96,26 @@ export async function pendingHandovers(db: Firestore, clubId: number, user: any)
   });
 }
 
+
+// 총무 권한 위임: 현직 총무가 자기 자리를 다른 성도에게 넘긴다. 본인 권한만 넘기므로 다른 총무의 동의는 필요 없다.
+export async function delegateManager(db: Firestore, clubId: string, actorKey: string, targetUserId: unknown) {
+  if(!/^\d+$/.test(String(targetUserId))) throw new Error('위임할 성도를 선택해주세요.');
+  const target=String(targetUserId);
+  const clubRef=doc(db,'clubs',clubId);
+  const pre=await getDoc(clubRef);
+  if(!pre.exists()) throw new Error('모영을 찾을 수 없습니다.');
+  const refs=await userRefs(db,[...new Set([...managerIds(pre.data()),target])]);
+  return runTransaction(db, async tx => {
+    const [club,actor,targetUser]=await Promise.all([tx.get(clubRef),tx.get(doc(db,'users',actorKey)),tx.get(refs.get(target)!)]);
+    const current=managerIds(club.data());
+    if(current.some(id=>!refs.has(id))) throw new Error('총무 명단이 변경되었습니다. 다시 시도해주세요.');
+    const actorId=String(actor.data()?.id ?? '');
+    if(!club.exists() || !actor.exists() || isGuest(actor.data()) || !current.includes(actorId)) throw new Error('현직 총무만 권한을 위임할 수 있습니다.');
+    if(!targetUser.exists() || isGuest(targetUser.data())) throw new Error('게스트에게는 위임할 수 없습니다.');
+    if(current.includes(target)) throw new Error('이미 총무인 성도입니다.');
+    const ids=current.map(id=>id===actorId?target:id);
+    const users=await Promise.all(ids.map(id=>id===target?Promise.resolve(targetUser):tx.get(refs.get(id)!)));
+    tx.update(clubRef,{manager_ids:ids,manager_names:users.map(user=>String(user.data()?.name??'')).join(', ')});
+    return {message:`총무 권한을 ${String(targetUser.data()?.name??'')}님에게 위임했습니다.`,manager_ids:ids};
+  });
+}
