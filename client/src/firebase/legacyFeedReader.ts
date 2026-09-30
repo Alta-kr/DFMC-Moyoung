@@ -3,12 +3,12 @@ export async function readLegacyFeedPage(db: Firestore, clubId: number, cursorTe
   let cursor: any = null;
   if (cursorText) {
     cursor = JSON.parse(cursorText);
-    if (!Array.isArray(cursor) || cursor.length !== 3 || !Number.isFinite(cursor[0]) || !Number.isFinite(cursor[1]) || typeof cursor[2] !== 'string' || cursor[2].includes('/')) throw new Error('피드 위치를 확인해주세요.');
+    if (!Array.isArray(cursor) || cursor.length !== 3 || !Number.isFinite(cursor[0]) || !Number.isFinite(cursor[1]) || typeof cursor[2] !== 'string' || cursor[2].includes('/')) throw new Error('피드 위치를 확인해 주세요.');
   }
   const snapshot = await getDocs(query(collection(db,'clubs',String(clubId),'feed'),orderBy('priority','desc'),orderBy('sortAt','desc'),orderBy(documentId(),'asc'),...(cursor?[startAfter(...cursor)]:[]),limit(10)));
   const sourceDocs = await Promise.all(snapshot.docs.map(card=>{
     const data=card.data();
-    if(!['club_posts','club_polls','club_schedules'].includes(data.sourceCollection) || typeof data.sourceId!=='string' || data.sourceId.includes('/')) throw new Error('피드 원본을 확인해주세요.');
+    if(!['club_posts','club_polls','club_schedules'].includes(data.sourceCollection) || typeof data.sourceId!=='string' || data.sourceId.includes('/')) throw new Error('피드 원본을 확인해 주세요.');
     return getDoc(doc(db,data.sourceCollection,data.sourceId));
   }));
   const safe = sourceDocs.filter(source=>source.exists() && Number(source.data()?.club_id ?? source.data()?.clubId)===clubId).map(source=>({ref:source.ref,data:()=>source.data()!}));

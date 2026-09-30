@@ -18,7 +18,7 @@ export const CellUpdateModal: React.FC<CellUpdateModalProps> = ({ user, onCellUp
     const cellValue = cellInput.trim();
 
     if (!cellValue) {
-      setError('새 소속 셀 이름을 입력해주세요.');
+      setError('새 소속 셀 이름을 입력해 주세요.');
       return;
     }
 
@@ -68,8 +68,8 @@ export const CellUpdateModal: React.FC<CellUpdateModalProps> = ({ user, onCellUp
           </div>
           <h3 style={{ fontSize: '18px', fontWeight: '800' }}>새학기/연말 셀 개편 안내</h3>
           <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', marginTop: '4px', lineHeight: 1.5 }}>
-            <strong>{user.name}</strong> 성도님, 교회 셀 개편이 진행되었습니다.<br />
-            배정받으신 새로운 소속 셀 이름을 직접 작성해주세요.
+            <strong>{user.name}</strong> 교회 셀이 새로 개편되었습니다.<br />
+            배정받으신 새로운 소속 셀 이름을 직접 작성해 주세요.
           </p>
         </div>
 
@@ -105,7 +105,7 @@ export const CellUpdateModal: React.FC<CellUpdateModalProps> = ({ user, onCellUp
             disabled={loading || !cellInput.trim()}
             style={{ marginTop: '12px', padding: '10px', fontSize: '14px', fontWeight: '800' }}
           >
-            {loading ? '성도 셀 검증 중...' : '새 소속 셀 확인 및 로비 입장'}
+            {loading ? '성도 셀 검증 중...' : '셀 확인하고 홈으로'}
           </button>
         </form>
       </div>

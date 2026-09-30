@@ -20,7 +20,7 @@ export default function MembershipAdminPanel() {
         const result = await changeMembership({ clubId: clubId.trim(), uid: uid.trim(), status, isLeader });
         setMessage(result.changed ? '회원 상태를 변경했습니다.' : '이미 같은 상태입니다.');
       } catch (error) {
-        setMessage((error as { message?: string }).message || '변경하지 못했습니다. 다시 시도해주세요.');
+        setMessage((error as { message?: string }).message || '변경하지 못했습니다. 다시 시도해 주세요.');
       } finally { lock.current = false; setBusy(false); }
     }}>
       <fieldset disabled={busy} style={{ border: 0, padding: 0 }}>

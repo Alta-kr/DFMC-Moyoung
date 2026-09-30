@@ -162,7 +162,7 @@ export async function handleLegacyApi(db: any, requestUrl: URL, method: string, 
         const part = guardedClub[2];
         if (!actor) return makeResponse({ error: '로그인이 필요합니다.' }, 401);
         if (!(await getDoc(doc(db,'clubs',guardedClub[1]))).exists()) return makeResponse({error:'모영을 찾을 수 없습니다.'},404);
-        if (part === '/handover' && !['head_admin','server_admin'].includes(actor.role)) return makeResponse({error:'총무 변경은 인계 안건으로 진행해주세요.'},403);
+        if (part === '/handover' && !['head_admin','server_admin'].includes(actor.role)) return makeResponse({error:'총무 변경은 인계 안건으로 진행해 주세요.'},403);
         if ((actor.role === 'guest' || actor.is_guest) && !(/^\/schedules\/\d+\/attend$/.test(part) && method === 'POST')) return makeResponse({ error: '게스트는 홈 일정 참석만 가능합니다.' }, 403);
         const item=part.match(/^\/(posts|polls|schedules)\/(\d+)/);
         if(item && method!=='GET') {
@@ -310,7 +310,7 @@ export async function handleLegacyApi(db: any, requestUrl: URL, method: string, 
       if (pathname === '/api/lobby/update-cell') {
         const newCellName = body?.newCellName ?? body?.new_cell_name ?? body?.cell_name ?? body?.cellName;
         if (!currentUsername) return makeResponse({ error: '로그인이 필요합니다.' }, 401);
-        if (typeof newCellName !== 'string' || !newCellName.trim()) return makeResponse({ error: '변경할 셀 이름을 입력해주세요.' }, 400);
+        if (typeof newCellName !== 'string' || !newCellName.trim()) return makeResponse({ error: '변경할 셀 이름을 입력해 주세요.' }, 400);
 
         const cellsSnap = await getDocs(collection(db, 'cells'));
         const matched = findCell(cellsSnap.docs, newCellName);
@@ -636,7 +636,7 @@ export async function handleLegacyApi(db: any, requestUrl: URL, method: string, 
         if (subPath === '/reactions' && method === 'POST') {
           const { targetType, targetId, emoji } = body || {};
           const source = {post:['club_posts','post_'],poll:['club_polls','poll_'],schedule:['club_schedules','sched_'],comment:['club_comments','comm_']}[targetType];
-          if (!source || !/^\d+$/.test(String(targetId)) || typeof emoji !== 'string' || emoji.length > 20 || !emoji) return makeResponse({error:'반응 대상을 확인해주세요.'},400);
+          if (!source || !/^\d+$/.test(String(targetId)) || typeof emoji !== 'string' || emoji.length > 20 || !emoji) return makeResponse({error:'반응 대상을 확인해 주세요.'},400);
           const target = await getDoc(doc(db,source[0],source[1]+targetId));
           if (!target.exists() || Number(target.data().club_id ?? target.data().clubId) !== clubId) return makeResponse({error:'다른 모임의 항목입니다.'},403);
           const userSnap = await getDoc(doc(db, 'users', currentUsername || 'member1'));
@@ -753,7 +753,7 @@ export async function handleLegacyApi(db: any, requestUrl: URL, method: string, 
         if (subPath === '/polls' && method === 'POST') {
           const {title,description,options}=body || {};
           const end_date=body?.end_date ?? body?.endDate;
-          if(typeof title!=='string' || !title.trim() || !Array.isArray(options) || options.length<2 || options.some((option:any)=>typeof option!=='string'||!option.trim()) || new Set(options).size!==options.length) return makeResponse({error:'투표 제목과 서로 다른 선택지를 입력해주세요.'},400);
+          if(typeof title!=='string' || !title.trim() || !Array.isArray(options) || options.length<2 || options.some((option:any)=>typeof option!=='string'||!option.trim()) || new Set(options).size!==options.length) return makeResponse({error:'투표 제목과 서로 다른 선택지를 입력해 주세요.'},400);
           let user: any = { name: '총무', id: 1 };
           if (currentUsername) {
             const userSnap = await getDoc(doc(db, 'users', currentUsername));
@@ -765,7 +765,7 @@ export async function handleLegacyApi(db: any, requestUrl: URL, method: string, 
           const userName = user.name ?? currentUsername ?? '총무';
 
           const closesAtMs = parseMoyoungDate(end_date, true);
-          if (closesAtMs === null || closesAtMs <= Date.now()) return makeResponse({ error: '투표 마감 시각을 확인해주세요.' }, 400);
+          if (closesAtMs === null || closesAtMs <= Date.now()) return makeResponse({ error: '투표 마감 시각을 확인해 주세요.' }, 400);
           const newPoll = {
             feedSchemaVersion: 1, feedClubId: String(clubId),
             closesAtMs,
@@ -827,16 +827,16 @@ export async function handleLegacyApi(db: any, requestUrl: URL, method: string, 
           const {title,location}=body || {};
           const event_date=body?.event_date ?? body?.eventDate;
           const fee_info=body?.fee_info ?? body?.feeInfo;
-          if(typeof title!=='string'||!title.trim()) return makeResponse({error:'일정 제목을 입력해주세요.'},400);
+          if(typeof title!=='string'||!title.trim()) return makeResponse({error:'일정 제목을 입력해 주세요.'},400);
           const userSnap = await getDoc(doc(db, 'users', currentUsername || 'member1'));
           const user = userSnap.data() || { name: '총무', id: 1 };
 
           const times = scheduleTimes({ ...body, event_date });
-          if (times.startsAtMs === null || times.endsAtMs === null || times.endsAtMs <= times.startsAtMs) return makeResponse({ error: '일정의 시작·종료 시각을 확인해주세요.' }, 400);
+          if (times.startsAtMs === null || times.endsAtMs === null || times.endsAtMs <= times.startsAtMs) return makeResponse({ error: '일정의 시작·종료 시각을 확인해 주세요.' }, 400);
           // 모집 인원은 선택 입력이다. 비우면 제한 없음.
           const rawMax = body?.max_attendees ?? body?.maxAttendees;
           const max_attendees = rawMax === undefined || rawMax === null || rawMax === '' ? undefined : Number(rawMax);
-          if (max_attendees !== undefined && (!Number.isInteger(max_attendees) || max_attendees < 1 || max_attendees > 1000)) return makeResponse({ error: '모집 인원은 1명 이상 숫자로 입력해주세요.' }, 400);
+          if (max_attendees !== undefined && (!Number.isInteger(max_attendees) || max_attendees < 1 || max_attendees > 1000)) return makeResponse({ error: '모집 인원은 1명 이상 숫자로 입력해 주세요.' }, 400);
           const newSched = {
             feedSchemaVersion: 1, feedClubId: String(clubId),
             ...times,
@@ -874,7 +874,7 @@ export async function handleLegacyApi(db: any, requestUrl: URL, method: string, 
         const schedAttendMatch = subPath.match(/^\/schedules\/(\d+)\/attend$/);
         if (schedAttendMatch && method === 'POST') {
           if (!currentUsername) return makeResponse({ error: '로그인이 필요합니다.' }, 401);
-          if (typeof body?.attending !== 'boolean') return makeResponse({ error: '참석 상태를 확인해주세요.' }, 400);
+          if (typeof body?.attending !== 'boolean') return makeResponse({ error: '참석 상태를 확인해 주세요.' }, 400);
           return makeResponse(await saveParticipation(db, 'club_schedules', 'sched_' + schedAttendMatch[1], clubId, currentUsername, body.attending));
         }
 
@@ -1104,7 +1104,7 @@ export async function handleLegacyApi(db: any, requestUrl: URL, method: string, 
         if (method === 'POST') {
           const { name } = body || {};
           if (!name || !name.trim()) {
-            return makeResponse({ error: '추가할 셀 이름을 입력해주세요.' }, 400);
+            return makeResponse({ error: '추가할 셀 이름을 입력해 주세요.' }, 400);
           }
           const cleanName = name.trim();
 
@@ -1177,7 +1177,7 @@ export async function handleLegacyApi(db: any, requestUrl: URL, method: string, 
           const manager_ids = [...new Set((body?.manager_ids || []).map(String))] as string[];
           if (manager_ids.length > 3) return makeResponse({error:'총무는 최대 3명입니다.'},400);
           const selectedManagers = await Promise.all(manager_ids.map(id=>getDocs(query(collection(db,'users'),where('id','==',Number(id))))));
-          if(selectedManagers.some(s=>s.size!==1 || s.docs[0].data().role==='guest' || s.docs[0].data().is_guest)) return makeResponse({error:'총무 회원 ID를 확인해주세요.'},400);
+          if(selectedManagers.some(s=>s.size!==1 || s.docs[0].data().role==='guest' || s.docs[0].data().is_guest)) return makeResponse({error:'총무 회원 ID를 확인해 주세요.'},400);
           const newClub = {
             id: Date.now(),
             name: name || '',
@@ -1233,8 +1233,8 @@ export async function handleLegacyApi(db: any, requestUrl: URL, method: string, 
           const tagline = body?.welcome_tagline ?? body?.tagline ?? '';
           const message = body?.welcome_message ?? body?.message ?? '';
           const user_ids = (Array.isArray(body?.user_ids) ? body.user_ids : Array.isArray(body?.userIds) ? body.userIds : []).map(Number).filter(Number.isFinite);
-          if (!user_ids.length) return makeResponse({ error: '대상 성도를 1명 이상 선택해주세요.' }, 400);
-          if (!String(tagline).trim() && !String(message).trim()) return makeResponse({ error: '환영 문구를 입력해주세요.' }, 400);
+          if (!user_ids.length) return makeResponse({ error: '대상 성도를 1명 이상 선택해 주세요.' }, 400);
+          if (!String(tagline).trim() && !String(message).trim()) return makeResponse({ error: '환영 문구를 입력해 주세요.' }, 400);
           const twId = id || Date.now();
           const newTW = {
             id: twId,
@@ -1326,7 +1326,7 @@ export async function handleLegacyApi(db: any, requestUrl: URL, method: string, 
       if (pathname.startsWith('/api/server-admin/reports/') && method === 'PUT') {
         const id = pathname.split('/')[4];
         const { status } = body || {};
-        if (typeof status !== 'string' || !status.trim() || status.length > 20) return makeResponse({ error: '처리 상태를 확인해주세요.' }, 400);
+        if (typeof status !== 'string' || !status.trim() || status.length > 20) return makeResponse({ error: '처리 상태를 확인해 주세요.' }, 400);
         const report = await getDoc(doc(db, 'reports', `report_${id}`));
         if (!report.exists()) return makeResponse({ error: '제보를 찾을 수 없습니다.' }, 404);
         await updateDoc(report.ref, { status });
@@ -1358,7 +1358,7 @@ export async function handleLegacyApi(db: any, requestUrl: URL, method: string, 
         if (method !== 'POST') return makeResponse({ error: '지원하지 않는 요청입니다.' }, 405);
         const requested = body?.usernames;
         if (!Array.isArray(requested) || requested.length === 0 || requested.length > 300 || requested.some((u: any) => typeof u !== 'string' || !u || u.includes('/'))) {
-          return makeResponse({ error: '삭제할 회원을 선택해주세요.' }, 400);
+          return makeResponse({ error: '삭제할 회원을 선택해 주세요.' }, 400);
         }
         const snaps = await Promise.all([...new Set(requested as string[])].map(u => getDoc(doc(db, 'users', u))));
         const targets = snaps.filter(s => s.exists());
@@ -1393,7 +1393,7 @@ export async function handleLegacyApi(db: any, requestUrl: URL, method: string, 
 
       if (pathname === '/api/server-admin/set-role') {
         const { userId, role } = body || {};
-        if (method !== 'POST' || !['member','media_admin','head_admin','server_admin'].includes(role)) return makeResponse({error:'올바른 권한을 선택해주세요.'},400);
+        if (method !== 'POST' || !['member','media_admin','head_admin','server_admin'].includes(role)) return makeResponse({error:'올바른 권한을 선택해 주세요.'},400);
         const uSnap = await getDocs(collection(db, 'users'));
         const target = uSnap.docs.find(d => d.data().id === userId);
         if (target) {

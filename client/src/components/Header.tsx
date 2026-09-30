@@ -18,7 +18,7 @@ export const Header: React.FC<HeaderProps> = ({ user, currentPage, onNavigate, o
           className="app-brand" 
           style={{ cursor: 'pointer' }} 
           onClick={() => onNavigate('lobby')}
-          title="로비로 이동"
+          title="홈으로 이동"
         >
           <div className="brand-icon">모</div>
           <div>
@@ -54,7 +54,7 @@ export const Header: React.FC<HeaderProps> = ({ user, currentPage, onNavigate, o
         className="app-brand" 
         style={{ cursor: 'pointer' }} 
         onClick={() => onNavigate('lobby')}
-        title="로비로 이동"
+        title="홈으로 이동"
       >
         <div className="brand-icon">모</div>
         <div>
@@ -131,7 +131,7 @@ export const Header: React.FC<HeaderProps> = ({ user, currentPage, onNavigate, o
               style={{ padding: '5px 10px', borderRadius: '8px', whiteSpace: 'nowrap' }}
             >
               <Settings size={14} />
-              <span>{currentPage === 'head-admin' ? '로비로' : '관리'}</span>
+              <span>{currentPage === 'head-admin' ? '홈으로' : '관리'}</span>
             </button>
           )}
 
@@ -143,7 +143,7 @@ export const Header: React.FC<HeaderProps> = ({ user, currentPage, onNavigate, o
               style={{ padding: '5px 9px', borderRadius: '8px', whiteSpace: 'nowrap' }}
             >
               <Server size={14} />
-              <span>{currentPage === 'server-admin' ? '로비' : '서버창'}</span>
+              <span>{currentPage === 'server-admin' ? '홈' : '서버창'}</span>
             </button>
           )}
         </div>

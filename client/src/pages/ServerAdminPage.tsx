@@ -215,7 +215,7 @@ ${preview}${targets.length > 10 ? ' 외' : ''}
 
   // Reset 2FA Security Lock
   const handleResetSecurity = async () => {
-    if (!confirm('2FA 실패 횟수 및 잠금 상태를 초기화하시겠습니까?')) return;
+    if (!confirm('인증 실패 횟수와 잠금을 초기화하시겠습니까?')) return;
     try {
       const res = await fetch('/api/server-admin/reset-security', {
         method: 'POST',
@@ -345,7 +345,7 @@ ${preview}${targets.length > 10 ? ' 외' : ''}
             onClick={onNavigateLobby}
             style={{ fontSize: '12px', padding: '6px 12px' }}
           >
-            일반 로비 보기
+            일반 홈 보기
           </button>
         </div>
       </div>
@@ -445,7 +445,7 @@ ${preview}${targets.length > 10 ? ' 외' : ''}
           padding: '18px'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#9ca3af', marginBottom: '8px' }}>
-            <span style={{ fontSize: '12px', fontWeight: '600' }}>2FA 보안 상태</span>
+            <span style={{ fontSize: '12px', fontWeight: '600' }}>관리자 인증 상태</span>
             <ShieldAlert size={18} color={metrics?.security?.is_locked ? '#ef4444' : '#f59e0b'} />
           </div>
           <div style={{ fontSize: '16px', fontWeight: '700', color: metrics?.security?.is_locked ? '#ef4444' : '#fcd34d' }}>
@@ -666,7 +666,7 @@ ${preview}${targets.length > 10 ? ' 외' : ''}
                       <td colSpan={5} style={{ textAlign: 'center', padding: '40px 12px', color: '#9ca3af' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
                           <RefreshCw size={24} className="animate-spin" style={{ color: '#38bdf8' }} />
-                          <span style={{ fontSize: '13px', fontWeight: '500' }}>성도 명단을 빠르게 불러오는 중...</span>
+                          <span style={{ fontSize: '13px', fontWeight: '500' }}>성도 명단을 불러오는 중...</span>
                         </div>
                       </td>
                     </tr>
@@ -825,7 +825,7 @@ ${preview}${targets.length > 10 ? ' 외' : ''}
                 <Search size={14} style={{ position: 'absolute', left: '10px', top: '10px', color: '#6b7280' }} />
                 <input
                   type="text"
-                  placeholder="게스트 성명 / 지인 이름 / 임시 ID"
+                  placeholder="게스트 이름 / 지인 이름 / 임시 ID"
                   value={guestSearchTerm}
                   onChange={(e) => setGuestSearchTerm(e.target.value)}
                   style={{
@@ -847,7 +847,7 @@ ${preview}${targets.length > 10 ? ' 외' : ''}
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left', whiteSpace: 'nowrap' }}>
                 <thead>
                   <tr style={{ borderBottom: '1px solid #374151', color: '#9ca3af', fontSize: '12px' }}>
-                    <th style={{ padding: '10px 12px' }}>게스트 성명</th>
+                    <th style={{ padding: '10px 12px' }}>게스트 이름</th>
                     <th style={{ padding: '10px 12px' }}>교회 지인 (인도자)</th>
                     <th style={{ padding: '10px 12px' }}>임시 계정 ID</th>
                     <th style={{ padding: '10px 12px' }}>접속/생성 일시</th>
@@ -861,7 +861,7 @@ ${preview}${targets.length > 10 ? ' 외' : ''}
                       <td colSpan={6} style={{ textAlign: 'center', padding: '40px 12px', color: '#9ca3af' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
                           <RefreshCw size={24} className="animate-spin" style={{ color: '#f59e0b' }} />
-                          <span style={{ fontSize: '13px', fontWeight: '500' }}>게스트 명단을 빠르게 불러오는 중...</span>
+                          <span style={{ fontSize: '13px', fontWeight: '500' }}>게스트 명단을 불러오는 중...</span>
                         </div>
                       </td>
                     </tr>

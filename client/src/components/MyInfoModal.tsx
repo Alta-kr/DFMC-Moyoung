@@ -43,7 +43,7 @@ export const MyInfoModal: React.FC<MyInfoModalProps> = ({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      alert('버그 제보가 성공적으로 접수되었습니다. 감사합니다!');
+      alert('제보를 받았습니다. 감사합니다.');
       setShowBugReport(false);
       setBugTitle('');
       setBugContent('');
@@ -82,7 +82,7 @@ export const MyInfoModal: React.FC<MyInfoModalProps> = ({
     const cellValue = cellInput.trim();
 
     if (!cellValue) {
-      setError('소속 셀 이름을 입력해주세요.');
+      setError('소속 셀 이름을 입력해 주세요.');
       return;
     }
 
@@ -90,7 +90,7 @@ export const MyInfoModal: React.FC<MyInfoModalProps> = ({
     if (availableCells.length > 0) {
       const match = availableCells.find(c => c.name.trim() === cellValue);
       if (!match) {
-        setError(`등록된 교회 셀 목록에 [${cellValue}] 셀이 존재하지 않습니다. 등록된 셀 명단을 확인해주세요.`);
+        setError(`등록된 교회 셀 목록에 [${cellValue}] 셀이 존재하지 않습니다. 등록된 셀 명단을 확인해 주세요.`);
         return;
       }
     }

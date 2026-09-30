@@ -355,7 +355,7 @@ export const HeadAdminPage: React.FC<HeadAdminPageProps> = ({ user, onBackToLobb
   const handleSaveTargeted = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!targetGroupName.trim()) {
-      setError('대상 그룹명을 입력해주세요 (예: 말씀양육 수료자, 새가족 등록 성도 등).');
+      setError('대상 그룹명을 입력해 주세요 (예: 말씀양육 수료자, 새가족 등록 성도 등).');
       return;
     }
     setLoading(true);
@@ -483,7 +483,7 @@ export const HeadAdminPage: React.FC<HeadAdminPageProps> = ({ user, onBackToLobb
     const filtered = reorganizeCellList.map(c => c.trim()).filter(c => c.length > 0 && c !== '둔산제일교회');
     const msg = filtered.length === 0
       ? '입력된 셀이 없습니다. 개편을 실행하면 기존 셀이 모두 삭제되고 기본 셀만 유지됩니다. 계속하시겠습니까?'
-      : '정말로 셀 개편을 실행하시겠습니까? 등록된 셀 목록으로 전체 갱신되며, 일반 회원들의 소속 셀 재설정이 요청됩니다.';
+      : '셀 개편을 실행하시겠습니까? 입력한 셀 목록으로 모두 바뀌고, 회원들에게 소속 셀을 다시 입력하라는 안내가 뜹니다.';
     if (!confirm(msg)) return;
 
     setLoading(true);
@@ -528,7 +528,7 @@ export const HeadAdminPage: React.FC<HeadAdminPageProps> = ({ user, onBackToLobb
       setSelectedManagerNames(selectedManagerNames.filter(n => n !== name));
     } else {
       if (selectedManagerNames.length >= 3) {
-        alert('총무는 모영당 최대 3명까지 선임할 수 있습니다.');
+        alert('총무는 모영마다 최대 3명입니다.');
         return;
       }
       setSelectedManagerNames([...selectedManagerNames, name]);
@@ -564,7 +564,7 @@ export const HeadAdminPage: React.FC<HeadAdminPageProps> = ({ user, onBackToLobb
 
     // 팝업이 활성화 상태일 때만 제목 검사 (비활성화 상태면 종료일/제목 없이도 즉시 저장 가능)
     if (popupIsActive && !popupTitle.trim()) {
-      setError('활성화 상태에서는 팝업 제목을 입력해주세요.');
+      setError('활성화 상태에서는 팝업 제목을 입력해 주세요.');
       return;
     }
 
@@ -646,7 +646,7 @@ export const HeadAdminPage: React.FC<HeadAdminPageProps> = ({ user, onBackToLobb
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      flashMessage(data.message || (newActive ? '공지가 ON(노출)되었습니다.' : '공지가 OFF(숨김)되었습니다.'));
+      flashMessage(data.message || (newActive ? '공지를 다시 보이게 했습니다.' : '공지를 숨겼습니다.'));
     } catch (err: any) {
       // 롤백
       setNoticeIsActive(!newActive);
@@ -794,7 +794,7 @@ export const HeadAdminPage: React.FC<HeadAdminPageProps> = ({ user, onBackToLobb
           style={{ background: 'white', color: '#1e3a8a', fontSize: '12.5px', fontWeight: '700' }}
         >
           <ArrowLeft size={14} />
-          로비로
+          홈으로
         </button>
       </div>
 
@@ -1147,7 +1147,7 @@ export const HeadAdminPage: React.FC<HeadAdminPageProps> = ({ user, onBackToLobb
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px' }}>
               <Sparkles size={16} color="var(--color-primary)" />
               <h3 style={{ fontSize: '15px', fontWeight: '800' }}>
-                로비 화면 실시간 미리보기
+                홈 화면 실시간 미리보기
               </h3>
             </div>
 
@@ -1189,10 +1189,10 @@ export const HeadAdminPage: React.FC<HeadAdminPageProps> = ({ user, onBackToLobb
           {/* Edit Form */}
           <div className="card">
             <h3 style={{ fontSize: '16px', fontWeight: '800', marginBottom: '8px' }}>
-              로비 환영 문구 편집
+              홈 환영 문구 편집
             </h3>
             <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '16px' }}>
-              모든 회원이 로비에 접속했을 때 최상단 배너에 표시될 슬로건과 교제 안내 문구를 변경합니다.
+              모든 회원이 홈에 들어왔을 때 최상단 배너에 표시될 슬로건과 교제 안내 문구를 변경합니다.
             </p>
 
             <form onSubmit={async (e) => {
@@ -1272,7 +1272,7 @@ export const HeadAdminPage: React.FC<HeadAdminPageProps> = ({ user, onBackToLobb
                   </span>
                 </div>
                 <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '4px' }}>
-                  특정 인원들을 모아서 로비 접속 시 개인 맞춤형 축복/환영 문구를 개별 노출합니다.
+                  특정 인원들을 모아서 홈 접속 시 개인 맞춤형 축복/환영 문구를 개별 노출합니다.
                 </p>
               </div>
 
@@ -1395,7 +1395,7 @@ export const HeadAdminPage: React.FC<HeadAdminPageProps> = ({ user, onBackToLobb
                               border: `1px solid ${item.is_active ? '#a7f3d0' : '#e2e8f0'}`
                             }}
                           >
-                            {item.is_active ? '● 노출 활성' : '○ 일시 비활성'}
+                            {item.is_active ? '● 표시' : '○ 숨김'}
                           </button>
 
                           <button
@@ -1777,7 +1777,7 @@ export const HeadAdminPage: React.FC<HeadAdminPageProps> = ({ user, onBackToLobb
                   {/* Live Preview for Targeted Banner */}
                   <div style={{ marginBottom: '20px' }}>
                     <div style={{ fontSize: '12px', fontWeight: '700', color: 'var(--color-text-muted)', marginBottom: '6px' }}>
-                      ✨ 대상 성도 로비 화면 실시간 미리보기
+                      ✨ 대상 성도 홈 화면 실시간 미리보기
                     </div>
                     <div style={{
                       background: 'linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)',
@@ -1857,9 +1857,9 @@ export const HeadAdminPage: React.FC<HeadAdminPageProps> = ({ user, onBackToLobb
         <div className="card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
             <div>
-              <h3 style={{ fontSize: '16px', fontWeight: '800' }}>로비 팝업창 설정</h3>
+              <h3 style={{ fontSize: '16px', fontWeight: '800' }}>홈 팝업 설정</h3>
               <p style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
-                로비 첫 접속 시 띄울 팝업창 (단 1개 운영)
+                홈에 처음 들어올 때 띄울 팝업창 (단 1개 운영)
               </p>
             </div>
 
@@ -1887,11 +1887,11 @@ export const HeadAdminPage: React.FC<HeadAdminPageProps> = ({ user, onBackToLobb
             </div>
 
             <div className="form-group">
-              <label className="form-label">팝업 내용 (선택 - 사진에 문구가 포함된 경우 생략 가능)</label>
+              <label className="form-label">팝업 내용 (선택, 사진에 글이 있으면 비워도 됩니다)</label>
               <textarea
                 className="form-textarea"
                 rows={3}
-                placeholder="팝업 본문 내용 (선택 사항 - 사진에 문구가 있는 경우 생략 가능)"
+                placeholder="팝업 내용 (선택, 사진에 글이 있으면 비워도 됩니다)"
                 value={popupContent}
                 onChange={(e) => setPopupContent(e.target.value)}
               />
@@ -1918,7 +1918,7 @@ export const HeadAdminPage: React.FC<HeadAdminPageProps> = ({ user, onBackToLobb
             </div>
 
             <div className="form-group">
-              <label className="form-label">팝업 종료 일시 (선택 - 미입력 시 1년 유지)</label>
+              <label className="form-label">팝업 종료 일시 (선택, 비우면 1년)</label>
               <input
                 type="datetime-local"
                 className="form-input"
@@ -1977,16 +1977,16 @@ export const HeadAdminPage: React.FC<HeadAdminPageProps> = ({ user, onBackToLobb
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Megaphone size={18} color={noticeIsActive && activeNotice ? 'var(--color-primary)' : '#94a3b8'} />
                 <h3 style={{ fontSize: '15.5px', fontWeight: '800', color: 'var(--color-text-main)' }}>
-                  현재 로비 공지 상태
+                  현재 홈 공지 상태
                 </h3>
                 {activeNotice && (
                   noticeIsActive ? (
                     <span className="badge badge-success" style={{ fontWeight: '800', fontSize: '11.5px', padding: '3px 8px' }}>
-                      ● 노출 ON
+                      ● 표시
                     </span>
                   ) : (
                     <span className="badge" style={{ background: '#f1f5f9', color: '#64748b', border: '1px solid #cbd5e1', fontWeight: '800', fontSize: '11.5px', padding: '3px 8px' }}>
-                      ○ 숨김 OFF
+                      ○ 숨김
                     </span>
                   )
                 )}
@@ -2013,7 +2013,7 @@ export const HeadAdminPage: React.FC<HeadAdminPageProps> = ({ user, onBackToLobb
                       cursor: 'pointer'
                     }}
                   >
-                    <span>{noticeIsActive ? '공지 끄기 (OFF)' : '공지 켜기 (ON)'}</span>
+                    <span>{noticeIsActive ? '공지 숨기기' : '공지 보이기'}</span>
                   </button>
 
                   <button
@@ -2048,7 +2048,7 @@ export const HeadAdminPage: React.FC<HeadAdminPageProps> = ({ user, onBackToLobb
                     alignItems: 'center',
                     gap: '4px'
                   }}>
-                    <span>⚠️ 현재 공지가 [OFF (숨김)] 상태입니다. 홈 화면(로비)에 공지 카드가 노출되지 않습니다.</span>
+                    <span>공지가 숨김 상태라 홈에 보이지 않습니다.</span>
                   </div>
                 )}
                 <h4 style={{ fontSize: '15px', fontWeight: '700', color: 'var(--color-text-main)', marginBottom: '6px' }}>
@@ -2063,7 +2063,7 @@ export const HeadAdminPage: React.FC<HeadAdminPageProps> = ({ user, onBackToLobb
               </div>
             ) : (
               <p style={{ fontSize: '12.5px', color: 'var(--color-text-muted)', margin: 0 }}>
-                현재 등록된 공지가 없습니다. 아래 양식에서 등록하시면 로비 최상단에 바로 노출됩니다.
+                현재 등록된 공지가 없습니다. 아래 양식에서 등록하시면 홈 최상단에 바로 노출됩니다.
               </p>
             )}
           </div>
@@ -2072,7 +2072,7 @@ export const HeadAdminPage: React.FC<HeadAdminPageProps> = ({ user, onBackToLobb
           <div className="card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '8px' }}>
               <h3 style={{ fontSize: '16px', fontWeight: '800' }}>
-                교회 전체 공지 {activeNotice ? '수정 및 갱신' : '신규 등록'}
+                교회 전체 공지 {activeNotice ? '수정' : '신규 등록'}
               </h3>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--color-text-muted)' }}>노출 여부:</span>
@@ -2091,12 +2091,12 @@ export const HeadAdminPage: React.FC<HeadAdminPageProps> = ({ user, onBackToLobb
                     cursor: 'pointer'
                   }}
                 >
-                  {noticeIsActive ? '● 노출 ON' : '○ 숨김 OFF'}
+                  {noticeIsActive ? '● 표시' : '○ 숨김'}
                 </button>
               </div>
             </div>
             <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '14px' }}>
-              💡 안내: 로비 상단에는 항상 <strong>1건의 교회 전체 공지</strong>만 노출됩니다. 새 공지를 저장하면 이전 공지는 자동으로 교체됩니다.
+              💡 안내: 홈 상단에는 항상 <strong>1건의 교회 전체 공지</strong>만 노출됩니다. 새 공지를 저장하면 이전 공지는 자동으로 교체됩니다.
             </p>
 
             <form onSubmit={handleSaveNotice}>
@@ -2116,7 +2116,7 @@ export const HeadAdminPage: React.FC<HeadAdminPageProps> = ({ user, onBackToLobb
                 <textarea
                   className="form-textarea"
                   rows={5}
-                  placeholder="교회 모든 성도 및 회원들이 볼 공지사항 내용을 작성해주세요."
+                  placeholder="교회 모든 성도 및 회원들이 볼 공지사항 내용을 작성해 주세요."
                   value={noticeContent}
                   onChange={(e) => setNoticeContent(e.target.value)}
                 />
@@ -2125,7 +2125,7 @@ export const HeadAdminPage: React.FC<HeadAdminPageProps> = ({ user, onBackToLobb
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '14px' }}>
                 <button type="submit" className="btn btn-primary" disabled={loading} style={{ padding: '8px 18px' }}>
                   <Save size={15} />
-                  {loading ? '저장 중...' : activeNotice ? '공지 수정 및 반영하기' : '공지 즉시 등록하기'}
+                  {loading ? '저장 중...' : activeNotice ? '공지 수정' : '공지 등록'}
                 </button>
               </div>
             </form>
@@ -2340,7 +2340,7 @@ export const HeadAdminPage: React.FC<HeadAdminPageProps> = ({ user, onBackToLobb
                             onMouseLeave={(e) => {
                               e.currentTarget.style.background = '#e0f2fe';
                             }}
-                            title="클릭하여 이 모영의 날짜별/주별/월별 상세 조회수를 분석합니다."
+                            title="눌러서 이 모영의 날짜별·주별·월별 조회수를 봅니다."
                           >
                             <Eye size={11} />
                             <span>누적 {(club.view_count || 0).toLocaleString()}회</span>
@@ -2366,7 +2366,7 @@ export const HeadAdminPage: React.FC<HeadAdminPageProps> = ({ user, onBackToLobb
                               </span>
                             ))
                           ) : (
-                            <span style={{ color: '#ef4444', fontWeight: '600' }}>총무 미지정 (클릭하여 선임)</span>
+                            <span style={{ color: '#ef4444', fontWeight: '600' }}>총무 없음 (눌러서 선임)</span>
                           )}
                         </div>
                       </div>
@@ -2512,7 +2512,7 @@ export const HeadAdminPage: React.FC<HeadAdminPageProps> = ({ user, onBackToLobb
               </div>
             ) : (
               <p style={{ fontSize: '12.5px', color: 'var(--color-text-muted)' }}>
-                현재 선임된 미디어 관리자가 없습니다. 아래 회원 목록에서 [선임] 해주세요.
+                현재 선임된 미디어 관리자가 없습니다. 아래 회원 목록에서 [선임] 해 주세요.
               </p>
             )}
           </div>
@@ -2574,7 +2574,7 @@ export const HeadAdminPage: React.FC<HeadAdminPageProps> = ({ user, onBackToLobb
               {membersLoading && members.length === 0 ? (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '36px 0', gap: '10px', color: 'var(--color-text-muted)' }}>
                   <RefreshCw size={24} className="animate-spin" style={{ color: '#7c3aed' }} />
-                  <span style={{ fontSize: '13px', fontWeight: '500' }}>성도 목록을 빠르게 불러오는 중...</span>
+                  <span style={{ fontSize: '13px', fontWeight: '500' }}>성도 목록을 불러오는 중...</span>
                 </div>
               ) : members
                 .filter(m => 
@@ -2763,7 +2763,7 @@ export const HeadAdminPage: React.FC<HeadAdminPageProps> = ({ user, onBackToLobb
                   </select>
                 </div>
                 <div>
-                  <label className="form-label">모영 이름 ([종목] 모영)</label>
+                  <label className="form-label">모영 이름 (예: 풋살 모영)</label>
                   <input
                     type="text"
                     className="form-input"
@@ -2875,7 +2875,7 @@ export const HeadAdminPage: React.FC<HeadAdminPageProps> = ({ user, onBackToLobb
                                 setNewClubManagers(updated);
                               } else {
                                 if (currentList.length >= 3) {
-                                  alert('총무는 모영당 최대 3명까지만 선임할 수 있습니다.');
+                                  alert('총무는 모영마다 최대 3명입니다.');
                                   return;
                                 }
                                 setNewClubManagers([...currentList, String(m.id)].join(', '));
@@ -3135,7 +3135,7 @@ export const HeadAdminPage: React.FC<HeadAdminPageProps> = ({ user, onBackToLobb
                 onClick={handleExecuteReorganize}
                 style={{ fontSize: '12.5px', fontWeight: '800' }}
               >
-                {loading ? '처리 중...' : '일괄 개편 실행 및 저장'}
+                {loading ? '처리 중...' : '셀 개편 저장'}
               </button>
             </div>
           </div>
@@ -3263,7 +3263,7 @@ export const HeadAdminPage: React.FC<HeadAdminPageProps> = ({ user, onBackToLobb
               {membersLoading && members.length === 0 ? (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '36px 0', gap: '10px', color: 'var(--color-text-muted)' }}>
                   <RefreshCw size={24} className="animate-spin" style={{ color: 'var(--color-primary)' }} />
-                  <span style={{ fontSize: '13px', fontWeight: '500' }}>성도 목록을 빠르게 불러오는 중...</span>
+                  <span style={{ fontSize: '13px', fontWeight: '500' }}>성도 목록을 불러오는 중...</span>
                 </div>
               ) : members
                 .filter(m => 
@@ -3343,7 +3343,7 @@ export const HeadAdminPage: React.FC<HeadAdminPageProps> = ({ user, onBackToLobb
                             opacity: selectedManagerNames.length >= 3 ? 0.35 : 1,
                             cursor: selectedManagerNames.length >= 3 ? 'not-allowed' : 'pointer',
                           }}
-                          title={selectedManagerNames.length >= 3 ? '총무는 최대 3명까지만 선임할 수 있습니다.' : `${m.name} 성도를 총무로 선임`}
+                          title={selectedManagerNames.length >= 3 ? '총무는 모영마다 최대 3명입니다.' : `${m.name} 성도를 총무로 선임`}
                         >
                           <UserCheck size={12} />
                           선임

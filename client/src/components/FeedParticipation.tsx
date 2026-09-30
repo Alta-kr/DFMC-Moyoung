@@ -126,6 +126,6 @@ function ParticipationPanel({ db, clubId, item, uid }: { db: Firestore; clubId: 
       </form>
     </fieldset>
     {busy && <p role="status">저장 중입니다.</p>}
-    {(current.type === 'schedule' || current.type === 'poll') && closed && <p>마감된 참여입니다.</p>}
+    {(current.type === 'schedule' || current.type === 'poll') && closed && <p>이미 마감되었습니다.</p>}
   </section>;
 }

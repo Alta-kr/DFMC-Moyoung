@@ -58,10 +58,10 @@ export function appendFeedPage(previous: FeedItem[], next: FeedItem[]) {
 }
 export function readError(error: unknown) {
   const code = (error as { code?: string })?.code;
-  if (code === 'permission-denied') return '이 모임을 볼 권한이 없습니다. 가입 상태를 확인해주세요.';
-  if (code === 'unavailable') return '연결을 확인한 뒤 다시 시도해주세요.';
-  if (code === 'failed-precondition') return '목록을 준비하고 있습니다. 잠시 후 다시 시도해주세요.';
-  return '불러오지 못했습니다. 다시 시도해주세요.';
+  if (code === 'permission-denied') return '이 모임을 볼 권한이 없습니다. 가입 상태를 확인해 주세요.';
+  if (code === 'unavailable') return '연결을 확인한 뒤 다시 시도해 주세요.';
+  if (code === 'failed-precondition') return '목록을 준비하고 있습니다. 잠시 후 다시 시도해 주세요.';
+  return '불러오지 못했습니다. 다시 시도해 주세요.';
 }
 
 export function watchHomeSummary(db: Firestore, uid: string,

@@ -108,7 +108,7 @@ export const LobbyPage: React.FC<LobbyPageProps> = ({ user, onUpdateUser, onNavi
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      flashToast(data.message || (willAttend ? '참석 신청되었습니다! 🙏' : '참석이 취소되었습니다.'));
+      flashToast(data.message || (willAttend ? '참석 신청했습니다.' : '참석이 취소되었습니다.'));
     } catch (err: any) {
       // Rollback on error
       setSchedules(prev => prev.map(s => {
@@ -144,11 +144,11 @@ export const LobbyPage: React.FC<LobbyPageProps> = ({ user, onUpdateUser, onNavi
   const handleMemberLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!loginUsername.trim()) {
-      setLoginError('아이디를 입력해주세요.');
+      setLoginError('아이디를 입력해 주세요.');
       return;
     }
     if (!loginName.trim()) {
-      setLoginError('성도 실명을 입력해주세요.');
+      setLoginError('성도 실명을 입력해 주세요.');
       return;
     }
     setLoginLoading(true);
@@ -198,11 +198,11 @@ export const LobbyPage: React.FC<LobbyPageProps> = ({ user, onUpdateUser, onNavi
   const handleGuestModalSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!guestName.trim()) {
-      setGuestError('성함을 입력해주세요.');
+      setGuestError('이름을 입력해 주세요.');
       return;
     }
     if (!guestAcquaintance.trim()) {
-      setGuestError('교회 지인(인도자) 이름을 입력해주세요.');
+      setGuestError('교회 지인(인도자) 이름을 입력해 주세요.');
       return;
     }
     setGuestLoading(true);
@@ -249,7 +249,7 @@ export const LobbyPage: React.FC<LobbyPageProps> = ({ user, onUpdateUser, onNavi
       return;
     }
     if (user.role === 'guest') {
-      alert('게스트 모드 입니다.');
+      alert('게스트 모드입니다.');
       return;
     }
     onNavigateClub(clubId, 'schedules');
@@ -262,7 +262,7 @@ export const LobbyPage: React.FC<LobbyPageProps> = ({ user, onUpdateUser, onNavi
       return;
     }
     if (user.role === 'guest') {
-      alert('게스트 모드 입니다.');
+      alert('게스트 모드입니다.');
       return;
     }
     onNavigateClub(club.id, 'talk');
@@ -557,7 +557,7 @@ export const LobbyPage: React.FC<LobbyPageProps> = ({ user, onUpdateUser, onNavi
                       onClick={() => handleClubScheduleClick(sched.club_id)}
                       role="button"
                       tabIndex={0}
-                      title="클릭 시 모영 일정으로 이동합니다"
+                      title="누르면 모영 일정으로 이동합니다"
                       style={{
                         flex: 1,
                         minWidth: 0,
@@ -654,13 +654,13 @@ export const LobbyPage: React.FC<LobbyPageProps> = ({ user, onUpdateUser, onNavi
                         ) : sched.is_attending ? (
                           <>
                             <Check size={12} />
-                            <span>참석취소</span>
+                            <span>참석 취소</span>
                           </>
                         ) : isFull ? (
                           <span>모집 마감</span>
                         ) : (
                           <>
-                            <span>참석하기</span>
+                            <span>참석 신청</span>
                           </>
                         )}
                       </button>
@@ -685,7 +685,7 @@ export const LobbyPage: React.FC<LobbyPageProps> = ({ user, onUpdateUser, onNavi
           {loading && clubs.length === 0 ? (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 16px', gap: '10px', color: 'var(--color-text-muted)' }}>
               <RefreshCw size={24} className="animate-spin" style={{ color: 'var(--color-primary)' }} />
-              <span style={{ fontSize: '13px', fontWeight: '500' }}>모영 목록을 빠르게 불러오는 중...</span>
+              <span style={{ fontSize: '13px', fontWeight: '500' }}>모영 목록을 불러오는 중...</span>
             </div>
           ) : clubs.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '30px 16px', color: 'var(--color-text-muted)', fontSize: '13px' }}>
@@ -822,7 +822,7 @@ export const LobbyPage: React.FC<LobbyPageProps> = ({ user, onUpdateUser, onNavi
                     로그인
                   </h3>
                   <p style={{ fontSize: '12px', color: '#94a3b8', margin: 0 }}>
-                    모임 참석 신청을 위해 로그인해주세요.
+                    모임 참석 신청을 위해 로그인해 주세요.
                   </p>
                 </div>
 

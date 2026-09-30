@@ -20,7 +20,7 @@ export async function dispatchApi(db, { url, method, body = {}, token = '', ip =
     return Response.json({success:true});
   }
   if (path === '/api/auth/me' && method === 'GET') {
-    if (!session) fail(401,'다시 로그인해주세요.');
+    if (!session) fail(401,'다시 로그인해 주세요.');
     return Response.json({user:publicUser(session.user)});
   }
   const publicLobby = path === '/api/lobby/data' && method === 'GET';

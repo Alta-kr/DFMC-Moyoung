@@ -314,7 +314,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
     const hasText = Boolean(postContent.trim());
     const hasImage = false;
     if (!hasText && !hasImage) {
-      flashErr('글 내용을 입력해주세요.');
+      flashErr('글 내용을 입력해 주세요.');
       return;
     }
 
@@ -347,7 +347,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
     const hasText = Boolean(editingContent.trim());
     const hasImage = Boolean(editingImageUrl.trim());
     if (!hasText && !hasImage) {
-      flashErr('글 내용을 입력해주세요.');
+      flashErr('글 내용을 입력해 주세요.');
       return;
     }
 
@@ -674,7 +674,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
   const handleProposeHandover = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!handoverTargetUserId) {
-      flashErr('대상 성도를 선택해주세요.');
+      flashErr('대상 성도를 선택해 주세요.');
       return;
     }
     const delegating = handoverActionType === 'delegate';
@@ -718,16 +718,16 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
   const handleCreatePoll = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!pollTitle.trim()) {
-      flashErr('투표 제목을 입력해주세요.');
+      flashErr('투표 제목을 입력해 주세요.');
       return;
     }
     const cleanOptions = pollOptions.map(o => o.trim()).filter(Boolean);
     if (cleanOptions.length < 2) {
-      flashErr('선택지는 최소 2개 이상 입력해주세요.');
+      flashErr('선택지를 2개 이상 입력해 주세요.');
       return;
     }
     if (!pollEndDate) {
-      flashErr('투표 마감 일시를 설정해주세요.');
+      flashErr('투표 마감 일시를 설정해 주세요.');
       return;
     }
     try {
@@ -767,7 +767,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
   const handleVoteSubmit = async (pollId: number) => {
     const option = selectedVoteOption[pollId];
     if (!option) {
-      flashErr('투표할 항목을 먼저 선택해주세요.');
+      flashErr('투표할 항목을 먼저 선택해 주세요.');
       return;
     }
     if (isSubmittingVote !== null) return;
@@ -805,7 +805,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
 
   // Close Poll Handler
   const handleClosePoll = async (pollId: number) => {
-    if (!confirm('이 투표를 마감하시겠습니까? 마감 시 상단 고정에서 제거되고 결과가 지난 피드에 보존됩니다.')) return;
+    if (!confirm('투표를 마감하시겠습니까? 마감하면 상단 고정이 풀리고 결과는 피드에 남습니다.')) return;
     // Optimistic close
     setData(prev => {
       if (!prev) return prev;
@@ -847,7 +847,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
   const handleCreateSchedule = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!schedTitle.trim() || !schedDate || !schedStartTime || !schedEndTime || !schedLocation.trim()) {
-      flashErr('모임명, 날짜, 시간, 장소를 모두 입력해주세요.');
+      flashErr('모임명, 날짜, 시간, 장소를 모두 입력해 주세요.');
       return;
     }
     try {
@@ -1430,7 +1430,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
                             <div style={{ marginTop: item.content && item.content.trim() ? '8px' : '2px', maxWidth: '440px' }}>
                               <img
                                 src={item.image_url}
-                                alt="스레드 첨부 사진"
+                                alt="첨부 사진"
                                 onClick={() => setLightboxPhoto(item.image_url!)}
                                 style={{
                                   maxWidth: '100%',
@@ -2420,7 +2420,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
         }}>
           <Loader2 className="animate-spin" size={40} style={{ marginBottom: '16px' }} />
           <div style={{ fontSize: '16px', fontWeight: '800' }}>
-            {isSubmittingPost ? '게시 중입니다...' :
+            {isSubmittingPost ? '올리는 중...' :
              isDeleting ? '삭제 중입니다...' :
              isSubmittingVote !== null ? '투표 반영 중입니다...' :
              attendingScheduleId !== null ? '참석 처리 중입니다...' : '처리 중입니다...'}
@@ -2502,7 +2502,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
               borderRadius: '8px',
               transition: 'background-color 0.15s'
             }}
-            title="뒤로가기 (로비로 이동)"
+            title="뒤로가기 (홈으로 이동)"
           >
             <ArrowLeft size={20} />
           </button>
@@ -2578,7 +2578,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
                     e.currentTarget.style.background = '#f0fdf4';
                     e.currentTarget.style.borderColor = '#bbf7d0';
                   }}
-                  title="[관리자 전용] 클릭하여 일별/주별/월별 상세 접속 통계를 확인합니다."
+                  title="[관리자 전용] 눌러서 일별·주별·월별 접속 통계를 확인합니다."
                 >
                   <Eye size={12} color="#16a34a" />
                   <span>누적 조회수</span>
@@ -2664,7 +2664,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
                 <textarea
                   rows={2}
                   className="form-input"
-                  placeholder="새로운 스레드 시작하기... (공지, 모임 나눔)"
+                  placeholder="새 글 쓰기 (공지, 모임 나눔)"
                   value={postContent}
                   onChange={(e) => setPostContent(e.target.value)}
                   style={{
@@ -2755,7 +2755,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
                   fontSize: '12.5px'
                 }}
               >
-                {isSubmittingPost ? '게시 중...' : '게시'}
+                {isSubmittingPost ? '올리는 중...' : '게시'}
               </button>
             </div>
           </div>
@@ -3017,11 +3017,11 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
                               <span>{isAttending ? '취소 중...' : '신청 중...'}</span>
                             </>
                           ) : isAttending ? (
-                            '❌ 참석 취소'
+                            '참석 취소'
                           ) : isFull ? (
                             '모집 마감'
                           ) : (
-                            '🙋‍♂️ 참석 신청'
+                            '참석 신청'
                           )}
                         </button>
 
@@ -3126,7 +3126,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
                 #{club.name} 스레드 피드에 오신 것을 환영합니다!
               </div>
               <div style={{ marginTop: '4px', fontSize: '12.5px' }}>
-                {isHost ? '상단의 새 스레드 작성창에서 첫 나눔을 공유해보세요.' : '아직 등록된 스레드가 없습니다.'}
+                {isHost ? '위에서 첫 글을 남겨 보세요.' : '아직 글이 없습니다.'}
               </div>
             </div>
           ) : (
@@ -3208,7 +3208,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
             }}>
               <div style={{ width: '36px', height: '1.5px', background: '#e2e8f0', marginBottom: '8px' }} />
               <span>둔산제일교회 {club.name} 스레드</span>
-              <span style={{ fontSize: '11px', color: '#cbd5e1' }}>모든 새로운 스레드를 확인했습니다</span>
+              <span style={{ fontSize: '11px', color: '#cbd5e1' }}>새 글을 모두 확인했습니다.</span>
             </div>
           )}
         </div>
@@ -3563,7 +3563,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
                     >
                       <div>
                         <div style={{ fontSize: '13px', fontWeight: '700', color: '#92400e' }}>
-                          {vote.action_type === 'appoint' ? '✨ 신임 총무 추가' : '👋 총무 해임'} : <strong>{vote.target_user_name}</strong>
+                          {vote.action_type === 'appoint' ? '총무 추가' : '👋 총무 해임'} : <strong>{vote.target_user_name}</strong>
                         </div>
                         <div style={{ fontSize: '11.5px', color: '#b45309', marginTop: '2px' }}>
                           발의: {vote.proposer_name} · 찬성 ({vote.agreed_user_ids.length}/{Math.min(2, managers.length)}명)
@@ -3578,7 +3578,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
                           className={vote.has_agreed ? 'btn btn-sm btn-secondary' : 'btn btn-sm btn-primary'}
                           style={{ fontSize: '11.5px', padding: '5px 12px' }}
                         >
-                          {vote.has_agreed ? '찬성 완료' : '동의 (찬성)'}
+                          {vote.has_agreed ? '동의함' : '동의'}
                         </button>
                       )}
                     </div>
@@ -3605,7 +3605,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
                   style={{ flex: 1, padding: '7px' }}
                   disabled={managers.length >= 3}
                 >
-                  신임 총무 추가 (최대 3인)
+                  총무 추가 (최대 3명)
                 </button>
                 <button
                   type="button"
@@ -3617,7 +3617,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
                   style={{ flex: 1, padding: '7px' }}
                   disabled={managers.length <= 1}
                 >
-                  총무 사임/해임 (최소 1인)
+                  총무 해임 (최소 1명)
                 </button>
                 {isRealManager && (
                   <button
@@ -3684,7 +3684,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
                 </div>
               ) : (
                 <div>
-                  <label className="form-label">해임할 현직 총무 선택</label>
+                  <label className="form-label">해임할 총무 선택</label>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                     {(data?.churchMembers || [])
                       .filter(m => managerIds(club).includes(String(m.id)))
@@ -3721,7 +3721,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
                   className="btn btn-primary"
                   disabled={!handoverTargetUserId || (handoverActionType === 'appoint' && managers.length >= 3) || (handoverActionType === 'dismiss' && managers.length <= 1)}
                 >
-                  {handoverActionType === 'delegate' ? '권한 위임하기' : '안건 발의하기'}
+                  {handoverActionType === 'delegate' ? '권한 위임하기' : '안건 올리기'}
                 </button>
               </div>
             </form>

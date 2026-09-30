@@ -9,15 +9,15 @@ export async function saveLegacyParticipation(db: Firestore, collectionName: 'cl
     const [target, profile] = await Promise.all([tx.get(ref), tx.get(doc(db, 'users', username))]);
     if (!target.exists() || !profile.exists()) throw new Error('대상 또는 회원을 찾을 수 없습니다.');
     const data = target.data(), user: Record<string, any> = {...profile.data(), username};
-    if (user.id == null || typeof user.name !== 'string') throw new Error('회원 정보를 확인해주세요.');
+    if (user.id == null || typeof user.name !== 'string') throw new Error('회원 정보를 확인해 주세요.');
     if (Number(data.club_id ?? data.clubId) !== clubId) throw new Error('다른 모임의 항목입니다.');
     const poll = collectionName === 'club_polls';
     const deadline = poll ? parseMoyoungDate(data.closesAtMs ?? data.closes_at_ms ?? data.end_date ?? data.endDate, true)
       : scheduleTimes(data).endsAtMs;
-    if (deadline === null || deadline <= Date.now() || data.is_closed || data.isClosed) throw new Error('마감된 참여입니다.');
+    if (deadline === null || deadline <= Date.now() || data.is_closed || data.isClosed) throw new Error('이미 마감되었습니다.');
     if (poll && (user.role === 'guest' || user.is_guest)) throw new Error('게스트는 투표할 수 없습니다.');
-    if (poll && (typeof value !== 'string' || !data.options?.includes(value))) throw new Error('선택지를 확인해주세요.');
-    if (!poll && typeof value !== 'boolean') throw new Error('참석 상태를 확인해주세요.');
+    if (poll && (typeof value !== 'string' || !data.options?.includes(value))) throw new Error('선택지를 확인해 주세요.');
+    if (!poll && typeof value !== 'boolean') throw new Error('참석 상태를 확인해 주세요.');
     const field = poll ? 'votes' : 'attendees';
     const values = (Array.isArray(data[field]) ? data[field] : []).filter((entry: any) => !samePerson(entry, user));
     const entry = { user_key: username, user_id: user.id, user_name: user.name, user_cell: user.cell_name ?? '' };

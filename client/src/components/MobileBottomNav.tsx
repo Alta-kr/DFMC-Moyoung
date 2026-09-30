@@ -27,7 +27,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
         onClick={() => onNavigate('lobby')}
       >
         <Home size={19} />
-        <span>로비</span>
+        <span>홈</span>
       </button>
 
       {/* 2. Moyoung (Clubs) */}
@@ -81,7 +81,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
           type="button"
           className="bottom-nav-item"
           onClick={() => {
-            alert('게스트 모드 입니다.');
+            alert('게스트 모드입니다.');
           }}
         >
           <Shield size={19} />

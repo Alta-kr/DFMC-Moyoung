@@ -24,7 +24,7 @@ export default function MemberHomePage({ db, uid }: { db: Firestore; uid: string
     <h2>내 모영</h2>
     {loading && <p role="status">홈을 불러오고 있습니다.</p>}
     {error && <p role="alert">{error}</p>}
-    {!loading && !error && !summary && <p>등록된 모임 요약이 없습니다.</p>}
+    {!loading && !error && !summary && <p>가입한 모임이 없습니다.</p>}
     {summary?.notice && <p>{summary.notice}</p>}
     {summary?.clubs.map(club => <article key={club.id} className="card" style={{ padding: 16, marginTop: 12 }}>
       <h3>{club.name}</h3>

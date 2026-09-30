@@ -4,8 +4,8 @@ const hash = value => createHash('sha256').update(value).digest('hex');
 const randomToken = () => randomBytes(32).toString('base64url');
 export const publicUser = user => Object.fromEntries(['id','username','name','cell_name','role','is_guest','cell_verified','created_at'].filter(key => user[key] !== undefined).map(key => [key,user[key]]));
 export function fail(status, message) { const error = new Error(message); error.status = status; throw error; }
-const text = (value, max = 80) => typeof value === 'string' && value.trim().length > 0 && value.trim().length <= max ? value.trim() : fail(400,'입력 내용을 확인해주세요.');
-const usernameOf = value => { const name = text(value); if (!/^[A-Za-z0-9_-]{1,80}$/.test(name)) fail(400,'아이디 형식을 확인해주세요.'); return name; };
+const text = (value, max = 80) => typeof value === 'string' && value.trim().length > 0 && value.trim().length <= max ? value.trim() : fail(400,'입력 내용을 확인해 주세요.');
+const usernameOf = value => { const name = text(value); if (!/^[A-Za-z0-9_-]{1,80}$/.test(name)) fail(400,'아이디 형식을 확인해 주세요.'); return name; };
 export async function limitRequests(db, key, max = 20, windowMs = 600000) {
   const ref = db.doc('_apiLimits/' + hash(key));
   const accepted = await db.runTransaction(async tx => {
@@ -15,7 +15,7 @@ export async function limitRequests(db, key, max = 20, windowMs = 600000) {
     tx.set(ref,{ count: current.count + 1, until: current.until, expiresAt: new Date(current.until) });
     return true;
   });
-  if (!accepted) fail(429,'요청이 많습니다. 잠시 후 다시 시도해주세요.');
+  if (!accepted) fail(429,'요청이 많습니다. 잠시 후 다시 시도해 주세요.');
 }
 export async function needsStepUp(_db, user) {
   return user.role === 'server_admin';
@@ -41,7 +41,7 @@ export async function unlockAdmin(db, method, token) {
   const lock = locks.docs[0];
   if (!lock || lock.data().unlockExpiresAt.toMillis() <= Date.now()) return page('만료된 링크입니다','<p>관리자 로그인을 다시 시도하면 새 메일이 발송됩니다.</p>');
   await lock.ref.delete();
-  return page('잠금이 해제되었습니다','<p>관리자 로그인을 다시 시도해주세요.</p>');
+  return page('잠금이 해제되었습니다','<p>관리자 로그인을 다시 시도해 주세요.</p>');
 }
 export async function issueSession(db, user, elevated = false) {
   const token = randomToken();
@@ -66,11 +66,11 @@ export async function authenticate(db, path, body, ip, mail) {
     // Keyed by ID and IP so one caller cannot lock another member out of login.
     await limitRequests(db,'login:' + username + ':' + ip,10);
     const snap = await db.doc('users/' + username).get(), user = snap.data();
-    if (!user || user.disabled || user.name !== name || user.role === 'guest' || user.is_guest) fail(401,'아이디와 실명을 확인해주세요.');
+    if (!user || user.disabled || user.name !== name || user.role === 'guest' || user.is_guest) fail(401,'아이디와 실명을 확인해 주세요.');
     user.username = snap.id;
     const admin = await needsStepUp(db,user);
     // Server admins sign in only through the separate admin login.
-    if (admin !== path.endsWith('admin-login')) fail(401,'아이디와 실명을 확인해주세요.');
+    if (admin !== path.endsWith('admin-login')) fail(401,'아이디와 실명을 확인해 주세요.');
     if (!admin) return issueSession(db,user);
     // Every mailed code counts until one is verified; past the limit the account locks and no code is sent.
     const lockRef = db.doc('_apiLocks/' + username);
@@ -93,7 +93,7 @@ export async function authenticate(db, path, body, ip, mail) {
   }
   if (path === '/api/auth/verify-2fa') {
     const challenge = text(body.tempToken,100), code = text(body.code,5);
-    if (!/^[\w-]{43}$/.test(challenge) || !/^\d{5}$/.test(code)) fail(400,'인증번호를 확인해주세요.');
+    if (!/^[\w-]{43}$/.test(challenge) || !/^\d{5}$/.test(code)) fail(400,'인증번호를 확인해 주세요.');
     const ref = db.doc('_apiChallenges/' + hash(challenge));
     const result = await db.runTransaction(async tx => {
       const record = (await tx.get(ref)).data();
@@ -120,14 +120,14 @@ export async function authenticate(db, path, body, ip, mail) {
     }
     if (result?.remaining) fail(401,`인증번호가 틀렸습니다. ${result.remaining}번 더 틀리면 잠깁니다.`);
     const verified = result?.user;
-    if (!verified) fail(401,'인증번호가 틀리거나 만료되었습니다. 다시 로그인해주세요.');
+    if (!verified) fail(401,'인증번호가 틀리거나 만료되었습니다. 다시 로그인해 주세요.');
     return issueSession(db,verified,true);
   }
   if (path === '/api/auth/register' || path === '/api/auth/guest-login') {
     const guest = path.endsWith('guest-login');
     // Every required consent must be explicitly true; the agreed time is stamped by the server.
     const consent = body.consents || {};
-    if (!CONSENT_ITEMS.every(item => consent[item] === true)) fail(400,'필수 약관에 모두 동의해주세요.');
+    if (!CONSENT_ITEMS.every(item => consent[item] === true)) fail(400,'필수 약관에 모두 동의해 주세요.');
     const username = guest ? 'guest_' + randomBytes(12).toString('hex') : usernameOf(body.username);
     const name = text(body.name), cell = guest ? '지인: ' + text(body.acquaintance_name) : text(body.cell_name);
     const now = new Date().toISOString();
@@ -137,13 +137,13 @@ export async function authenticate(db, path, body, ip, mail) {
     if (!guest && !body.is_acquaintance) {
       const cells = await db.collection('cells').get();
       const matched = findCell(cells.docs, cell);
-      if (!matched) fail(400,'등록된 셀을 선택해주세요.');
+      if (!matched) fail(400,'등록된 셀을 선택해 주세요.');
       user.cell_name = matched.data().name;
     }
     // Acquaintance signups must name an existing, active member (guests do not count).
     if (!guest && body.is_acquaintance) {
       const members = await db.collection('users').where('name','==',cell).limit(20).get();
-      if (!members.docs.some(doc => { const m = doc.data(); return !m.disabled && !m.is_guest && m.role !== 'guest'; })) fail(400,'등록된 성도 이름을 확인해주세요.');
+      if (!members.docs.some(doc => { const m = doc.data(); return !m.disabled && !m.is_guest && m.role !== 'guest'; })) fail(400,'등록된 성도 이름을 확인해 주세요.');
     }
     await db.doc('users/' + username).create(user).catch(error => { if(error.code===6) fail(409,'이미 사용 중인 아이디입니다.'); throw error; });
     return issueSession(db,user);

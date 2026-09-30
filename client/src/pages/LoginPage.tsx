@@ -88,7 +88,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onNavigate
       if (data.requires2FA || data.requires2fa) {
         setTwoFAChallenge(data.tempToken || '');
         setShow2FAModal(true);
-        setDevCodeHint(data.devCodeHint || '이메일 인증번호를 입력해주세요.');
+        setDevCodeHint(data.devCodeHint || '이메일 인증번호를 입력해 주세요.');
         setTwoFACode(['', '', '', '', '']);
         setTwoFAError('');
         setTimeout(() => inputRefs.current[0]?.focus(), 100);
@@ -107,11 +107,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onNavigate
   const handleGuestSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!guestName.trim()) {
-      setGuestError('성함을 입력해주세요.');
+      setGuestError('이름을 입력해 주세요.');
       return;
     }
     if (!guestAcquaintance.trim()) {
-      setGuestError('교회 지인(인도자) 이름을 입력해주세요.');
+      setGuestError('교회 지인(인도자) 이름을 입력해 주세요.');
       return;
     }
     setGuestLoading(true);
@@ -168,7 +168,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onNavigate
       setIsLocked(false);
       setTwoFAChallenge(data.tempToken || '');
       setShow2FAModal(true);
-      setDevCodeHint(data.devCodeHint || '이메일 인증번호를 입력해주세요.');
+      setDevCodeHint(data.devCodeHint || '이메일 인증번호를 입력해 주세요.');
       setTwoFACode(['', '', '', '', '']);
       setTwoFAError('');
       setTimeout(() => inputRefs.current[0]?.focus(), 100);
@@ -204,7 +204,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onNavigate
         throw new Error(data.error || '회원가입에 실패했습니다.');
       }
 
-      setSuccessMessage('회원가입이 완료되었습니다! 자동 로그인합니다.');
+      setSuccessMessage('가입했습니다. 바로 로그인합니다.');
       localStorage.setItem('dfmc_token', data.token);
       setTimeout(() => {
         onLoginSuccess(data.user, data.token);
@@ -597,7 +597,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onNavigate
                   marginBottom: '8px',
                   lineHeight: 1.5
                 }}>
-                  💡 <strong>교인 교차 검증 안내</strong>: 본 사이트는 둔산제일교회 교인 또는 교인의 지인만 등록할 수 있습니다. 소속 셀이 없으신 경우 <strong>지인 체크박스</strong>를 선택하고, 이미 교회에 등록된 <strong>지인의 이름을 작성</strong>해주세요.
+                  💡 <strong>교인 교차 검증 안내</strong>: 본 사이트는 둔산제일교회 교인 또는 교인의 지인만 등록할 수 있습니다. 소속 셀이 없으신 경우 <strong>지인 체크박스</strong>를 선택하고, 이미 교회에 등록된 <strong>지인의 이름을 작성</strong>해 주세요.
                 </div>
               )}
 
@@ -674,7 +674,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onNavigate
                 <AlertTriangle size={24} style={{ margin: '0 auto 8px', display: 'block' }} />
                 <strong>관리자 계정 잠금</strong>
                 <p style={{ marginTop: '4px', fontSize: '12px' }}>
-                  관리자 인증을 5회 넘게 실패해 잠겼습니다. 관리자 메일의 잠금 해제 버튼을 누른 뒤 다시 로그인해주세요.
+                  관리자 인증을 5회 넘게 실패해 잠겼습니다. 관리자 메일의 잠금 해제 버튼을 누른 뒤 다시 로그인해 주세요.
                 </p>
               </div>
             ) : cooldownRemaining > 0 ? (
@@ -689,7 +689,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onNavigate
                 border: '1px solid #fde68a'
               }}>
                 <Clock size={22} style={{ margin: '0 auto 6px', display: 'block' }} />
-                <strong>1분 쿨다운 대기 중</strong>
+                <strong>1분 뒤에 다시 보낼 수 있습니다</strong>
                 <p style={{ marginTop: '4px', fontSize: '12.5px' }}>
                   인증 실패로 인해 잠시 입력이 제한되었습니다.<br />
                   남은 시간: <span style={{ fontWeight: '800', fontSize: '15px' }}>{cooldownRemaining}초</span>

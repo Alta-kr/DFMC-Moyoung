@@ -42,6 +42,6 @@ export const api = onRequest({region:'asia-northeast3',maxInstances:5,secrets:[m
       method:req.method, body:req.body || {}, token:(req.get('authorization') || '').replace(/^Bearer /,''), ip:req.ip || '' },mail);
     res.status(response.status).type(response.headers.get('content-type') || 'application/json').send(await response.text());
   } catch(error) {
-    res.status(error.status || 500).json({error:error.status ? error.message : '요청을 처리하지 못했습니다. 잠시 후 다시 시도해주세요.',...(error.is_locked ? {is_locked:true} : {})});
+    res.status(error.status || 500).json({error:error.status ? error.message : '요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.',...(error.is_locked ? {is_locked:true} : {})});
   }
 });

@@ -1,11 +1,11 @@
 import { collection, doc, getDoc, getDocs, query, where, runTransaction, type Firestore, type DocumentReference } from 'firebase/firestore';
 import { isClubManager, managerIds } from './identity.ts';
 export async function setLegacyManagers(db: Firestore, clubId: string, actorKey: string, input: unknown, action?: string) {
-  if (!Array.isArray(input) || input.some(id => !/^\d+$/.test(String(id)))) throw new Error('고유 회원 ID를 선택해주세요.');
+  if (!Array.isArray(input) || input.some(id => !/^\d+$/.test(String(id)))) throw new Error('고유 회원 ID를 선택해 주세요.');
   const requested = [...new Set(input.map(String))];
   if (requested.length > 3 || (action && !['appoint','dismiss'].includes(action))) throw new Error('총무는 최대 3명입니다.');
   const targets = await Promise.all(requested.map(id => getDocs(query(collection(db,'users'),where('id','==',Number(id))))));
-  if (targets.some(result => result.size !== 1)) throw new Error('회원 ID를 확인해주세요.');
+  if (targets.some(result => result.size !== 1)) throw new Error('회원 ID를 확인해 주세요.');
   const clubRef = doc(db,'clubs',clubId);
   return runTransaction(db, async tx => {
     const [club, actor, ...users] = await Promise.all([tx.get(clubRef),tx.get(doc(db,'users',actorKey)),...targets.map(result=>tx.get(result.docs[0].ref))]);
@@ -17,7 +17,7 @@ export async function setLegacyManagers(db: Firestore, clubId: string, actorKey:
     if(ids.length>3) throw new Error('총무는 최대 3명입니다.');
     // Display labels are never used to grant authority.
     const managerQueries=await Promise.all(ids.map(id=>getDocs(query(collection(db,'users'),where('id','==',Number(id))))));
-    if(managerQueries.some(result=>result.size!==1)) throw new Error('기존 총무 ID를 확인해주세요.');
+    if(managerQueries.some(result=>result.size!==1)) throw new Error('기존 총무 ID를 확인해 주세요.');
     const managers=await Promise.all(managerQueries.map(result=>tx.get(result.docs[0].ref)));
     if(managers.some(user=>!user.exists() || user.data()?.role==='guest' || user.data()?.is_guest)) throw new Error('게스트는 총무가 될 수 없습니다.');
     const names=managers.map(user=>String(user.data()?.name??'')).join(', ');
@@ -33,7 +33,7 @@ const isGuest=(user:any)=>!user || user.role==='guest' || Boolean(user.is_guest)
 const isAdmin=(user:any)=>['server_admin','head_admin','media_admin'].includes(user?.role);
 async function userRefs(db: Firestore, ids: string[]) {
   const results=await Promise.all(ids.map(id=>getDocs(query(collection(db,'users'),where('id','==',Number(id))))));
-  if(results.some(result=>result.size!==1)) throw new Error('회원 ID를 확인해주세요.');
+  if(results.some(result=>result.size!==1)) throw new Error('회원 ID를 확인해 주세요.');
   return new Map(ids.map((id,i)=>[id,results[i].docs[0].ref]));
 }
 function nextManagers(vote: any, current: string[]) {
@@ -51,7 +51,7 @@ async function settleHandover(db: Firestore, clubId: string, actorKey: string, v
   return runTransaction(db, async tx => {
     const [club,actor,voteSnap,targetUser]=await Promise.all([tx.get(clubRef),tx.get(doc(db,'users',actorKey)),tx.get(voteRef),tx.get(refs.get(target)!)]);
     const current=managerIds(club.data());
-    if(current.some(id=>!refs.has(id))) throw new Error('총무 명단이 변경되었습니다. 다시 시도해주세요.');
+    if(current.some(id=>!refs.has(id))) throw new Error('총무 명단이 변경되었습니다. 다시 시도해 주세요.');
     const actorId=String(actor.data()?.id ?? '');
     if(!club.exists() || !actor.exists() || isGuest(actor.data()) || !current.includes(actorId)) throw new Error('현직 총무만 참여할 수 있습니다.');
     let vote: any;
@@ -83,7 +83,7 @@ async function settleHandover(db: Firestore, clubId: string, actorKey: string, v
   });
 }
 export async function proposeHandover(db: Firestore, clubId: string, actorKey: string, targetUserId: unknown, action: unknown) {
-  if(!/^\d+$/.test(String(targetUserId)) || !['appoint','dismiss'].includes(String(action))) throw new Error('안건 내용을 확인해주세요.');
+  if(!/^\d+$/.test(String(targetUserId)) || !['appoint','dismiss'].includes(String(action))) throw new Error('안건 내용을 확인해 주세요.');
   const pending=await getDocs(query(collection(db,HANDOVER),where('club_id','==',Number(clubId)),where('status','==','pending')));
   if(pending.docs.some(d=>String(d.data().target_user_id)===String(targetUserId) && d.data().action_type===action)) throw new Error('같은 안건이 이미 진행 중입니다.');
   return settleHandover(db,clubId,actorKey,doc(db,HANDOVER,'handover_'+Date.now()),{targetUserId:String(targetUserId),action:String(action)});
@@ -102,7 +102,7 @@ export async function pendingHandovers(db: Firestore, clubId: number, user: any)
 
 // 총무 권한 위임: 현직 총무가 자기 자리를 다른 성도에게 넘긴다. 본인 권한만 넘기므로 다른 총무의 동의는 필요 없다.
 export async function delegateManager(db: Firestore, clubId: string, actorKey: string, targetUserId: unknown) {
-  if(!/^\d+$/.test(String(targetUserId))) throw new Error('위임할 성도를 선택해주세요.');
+  if(!/^\d+$/.test(String(targetUserId))) throw new Error('위임할 성도를 선택해 주세요.');
   const target=String(targetUserId);
   const clubRef=doc(db,'clubs',clubId);
   const pre=await getDoc(clubRef);
@@ -111,7 +111,7 @@ export async function delegateManager(db: Firestore, clubId: string, actorKey: s
   return runTransaction(db, async tx => {
     const [club,actor,targetUser]=await Promise.all([tx.get(clubRef),tx.get(doc(db,'users',actorKey)),tx.get(refs.get(target)!)]);
     const current=managerIds(club.data());
-    if(current.some(id=>!refs.has(id))) throw new Error('총무 명단이 변경되었습니다. 다시 시도해주세요.');
+    if(current.some(id=>!refs.has(id))) throw new Error('총무 명단이 변경되었습니다. 다시 시도해 주세요.');
     const actorId=String(actor.data()?.id ?? '');
     if(!club.exists() || !actor.exists() || isGuest(actor.data()) || !current.includes(actorId)) throw new Error('현직 총무만 권한을 위임할 수 있습니다.');
     if(!targetUser.exists() || isGuest(targetUser.data())) throw new Error('게스트에게는 위임할 수 없습니다.');

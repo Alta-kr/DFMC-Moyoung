@@ -50,12 +50,12 @@ export default function EmailAuthPage() {
     void run(async () => {
       if (mode === 'reset') {
         await resetPassword(email);
-        setMessage('가입된 이메일이면 비밀번호 재설정 안내를 확인해주세요.');
+        setMessage('가입된 이메일이면 비밀번호 재설정 안내를 확인해 주세요.');
       } else if (mode === 'register') {
         const account = await registerEmail(email, password, name);
         setProfile(await readProfile(account));
         await verifyEmail();
-        setMessage('가입되었습니다. 이메일 인증 안내를 확인해주세요.');
+        setMessage('가입되었습니다. 이메일 인증 안내를 확인해 주세요.');
       } else {
         await loginEmail(email, password);
       }
@@ -85,7 +85,7 @@ export default function EmailAuthPage() {
       })}>인증 이메일 다시 보내기</button>}
       <button className="btn" disabled={busy} onClick={() => void run(async () => {
         await user.reload(); await user.getIdToken(true); setVerified(user.emailVerified);
-        setMessage(user.emailVerified ? '이메일 인증을 확인했습니다.' : '이메일 인증 후 다시 확인해주세요.');
+        setMessage(user.emailVerified ? '이메일 인증을 확인했습니다.' : '이메일 인증 후 다시 확인해 주세요.');
       })}>인증 상태 확인</button>
       <button className="btn" disabled={busy} onClick={() => void run(async () => { await logoutEmail(); })}>로그아웃</button>
     </> : <>

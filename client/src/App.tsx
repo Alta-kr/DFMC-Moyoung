@@ -228,7 +228,7 @@ export function App() {
       return;
     }
     if (user.role === 'guest') {
-      alert('게스트 모드 입니다.');
+      alert('게스트 모드입니다.');
       return;
     }
 

@@ -77,15 +77,15 @@ export async function saveParticipation(db, collectionName, docId, clubId, usern
   const [target, profile] = await Promise.all([ref.get(), db.collection('users').doc(username).get()]);
   if (!target.exists || !profile.exists) throw new Error('대상 또는 회원을 찾을 수 없습니다.');
   const data = target.data(), user = { ...profile.data(), username };
-  if (user.id == null || typeof user.name !== 'string') throw new Error('회원 정보를 확인해주세요.');
+  if (user.id == null || typeof user.name !== 'string') throw new Error('회원 정보를 확인해 주세요.');
   if (Number(data.club_id ?? data.clubId) !== Number(clubId)) throw new Error('다른 모임의 항목입니다.');
   const poll = collectionName === 'club_polls';
   const deadline = poll ? parseMoyoungDate(data.closesAtMs ?? data.closes_at_ms ?? data.end_date ?? data.endDate, true)
     : scheduleTimes(data).endsAtMs;
-  if (deadline === null || deadline <= Date.now() || data.is_closed || data.isClosed) throw new Error('마감된 참여입니다.');
+  if (deadline === null || deadline <= Date.now() || data.is_closed || data.isClosed) throw new Error('이미 마감되었습니다.');
   if (poll && (user.role === 'guest' || user.is_guest)) throw new Error('게스트는 투표할 수 없습니다.');
-  if (poll && (typeof value !== 'string' || !data.options?.includes(value))) throw new Error('선택지를 확인해주세요.');
-  if (!poll && typeof value !== 'boolean') throw new Error('참석 상태를 확인해주세요.');
+  if (poll && (typeof value !== 'string' || !data.options?.includes(value))) throw new Error('선택지를 확인해 주세요.');
+  if (!poll && typeof value !== 'boolean') throw new Error('참석 상태를 확인해 주세요.');
   if (!migrated(data)) await migrateParticipation(db, collectionName, docId);
 
   // 회원 ID가 문서 이름이라 같은 회원은 한 번만 들어간다. 다른 회원과는 부딪히지 않는다.
