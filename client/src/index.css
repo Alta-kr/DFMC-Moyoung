@@ -265,27 +265,49 @@ body {
   animation: fadeIn 0.25s ease-out forwards;
 }
 
-/* 홈 맨 아래에서 한 번 더 당기면 튕기듯 나타나는 사이트 주소 QR */
-.site-qr-footer {
-  max-height: 0;
-  overflow: hidden;
-  transition: max-height 0.35s ease-out;
+/* 홈 아래에 붙은 전체 화면 QR 페이지. 당겼다 놓으면 아래에서 튕기듯 올라온다. */
+.site-qr-page {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  padding: 24px 16px;
+  background: #ffffff;
 }
-.site-qr-footer.is-open {
-  max-height: 200px;
+.site-qr-page.is-open { animation: qrPageUp 0.62s cubic-bezier(0.22, 1.25, 0.36, 1) both; }
+.site-qr-page.is-closing { animation: qrPageDown 0.32s ease-in both; }
+.site-qr-page-code {
+  width: min(72vw, 320px);
+  height: auto;
+  aspect-ratio: 1;
+  image-rendering: pixelated;
 }
-.site-qr-footer.is-open .site-qr-inner {
-  animation: qrBounceIn 0.7s cubic-bezier(0.22, 1.4, 0.36, 1) both;
+.site-qr-page-url { font-size: 18px; font-weight: 800; color: #1e3a8a; letter-spacing: 0.2px; }
+.site-qr-page-back {
+  margin-top: 8px;
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
 }
-@keyframes qrBounceIn {
-  0% { opacity: 0; transform: translateY(40px) scale(0.9); }
-  60% { opacity: 1; transform: translateY(-8px) scale(1.02); }
-  80% { transform: translateY(3px) scale(0.99); }
-  100% { opacity: 1; transform: translateY(0) scale(1); }
+@keyframes qrPageUp {
+  0% { transform: translateY(100%); }
+  70% { transform: translateY(-3%); }
+  85% { transform: translateY(1.2%); }
+  100% { transform: translateY(0); }
+}
+@keyframes qrPageDown {
+  from { transform: translateY(0); }
+  to { transform: translateY(100%); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .site-qr-footer { transition: none; }
-  .site-qr-footer.is-open .site-qr-inner { animation: none; }
+  .site-qr-page.is-open, .site-qr-page.is-closing { animation: none; }
 }
 
 /* Modal Backdrop */
