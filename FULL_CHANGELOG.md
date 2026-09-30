@@ -1,5 +1,9 @@
 > 최종 사용자 수정: 이메일 OTP는 서버 관리자만 사용한다. 미디어·전체 관리자와 총무는 실명+아이디.
 
+## 2026-09-30 사이트 주소 QR
+
+- 홈 화면 맨 아래에 https://dfmc-moyoung.com QR과 주소를 넣었다. QR은 `client/public/site-qr.svg` 정적 파일이다(`npx qrcode@1.5.4 -t svg -e M -q 2`로 생성, 외부 호출 없음). www 주소는 연결되어 있지 않다.
+
 ## 2026-09-30 셀 이름 입력 완화
 
 - 가입과 소속 셀 변경에서 셀 이름을 공백과 끝의 "셀"을 빼고 비교한다(`functions/src/cellName.js`). "장미소", "장미소셀", "장미소 셀" 모두 통과. 공백만 뺀 이름이 정확히 같은 셀을 먼저 찾는다. 셀 목록은 여전히 노출하지 않는다. 테스트: functions/tests/cellName.test.mjs.

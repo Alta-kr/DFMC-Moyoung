@@ -750,6 +750,12 @@ export const LobbyPage: React.FC<LobbyPageProps> = ({ user, onUpdateUser, onNavi
         </div>
       </div>
 
+      {/* 7. 사이트 주소 QR (client/public/site-qr.svg, 빌드에 포함된 정적 이미지) */}
+      <footer style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', paddingTop: '8px', color: 'var(--color-text-muted)' }}>
+        <img src="/site-qr.svg" alt="dfmc-moyoung.com QR 코드" width={96} height={96} style={{ background: '#ffffff', borderRadius: '8px' }} />
+        <span style={{ fontSize: '12px', fontWeight: '700' }}>dfmc-moyoung.com</span>
+      </footer>
+
       {/* Login & Guest Auth Modal on Lobby Attendance Click */}
       {showAuthModal && (
         <div
