@@ -680,8 +680,7 @@ export const ClubDetailPage: React.FC<ClubDetailPageProps> = ({
     const delegating = handoverActionType === 'delegate';
     if (delegating) {
       const target = (data?.churchMembers || []).find(m => m.id === handoverTargetUserId);
-      if (!confirm(`내 총무 권한을 ${target?.name ?? '선택한 성도'}님에게 위임하시겠습니까?
-위임하면 나는 총무에서 빠집니다.`)) return;
+      if (!confirm(`내 총무 권한을 ${target?.name ?? '선택한 성도'}님에게 위임하시겠습니까?`)) return;
     }
     try {
       const res = await fetch(`/api/clubs/${clubId}/handover/${delegating ? 'delegate' : 'propose'}`, {
