@@ -12,7 +12,11 @@ async function sendMail(templateId, params) {
     method:'POST', headers:{'Content-Type':'application/json'}, signal:AbortSignal.timeout(10000),
     body:JSON.stringify({ service_id:serviceId, template_id:templateId, user_id:publicKey, accessToken:privateKey, template_params:params }),
   });
-  if (!response.ok) throw Object.assign(new Error('인증 메일 발송에 실패했습니다.'),{status:503});
+  // EmailJS의 거절 사유(예: 템플릿 없음, 서버 발송 비허용)를 로그에 남긴다. 요청 본문과 키는 남기지 않는다.
+  if (!response.ok) {
+    console.error('EmailJS send failed', response.status, (await response.text().catch(() => '')).slice(0, 300));
+    throw Object.assign(new Error('인증 메일 발송에 실패했습니다.'),{status:503});
+  }
 }
 const mail = {
   async sendCode(username, code) {
