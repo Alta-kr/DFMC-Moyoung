@@ -514,12 +514,11 @@ body {
   background: #f1f5f9;
 }
 
-.share-channel-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  row-gap: 16px;
-  column-gap: 8px;
-  margin-bottom: 22px;
+.share-channel-row {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  padding: 6px 8px 22px 8px;
 }
 
 .share-channel-item {
@@ -528,10 +527,11 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   cursor: pointer;
-  padding: 4px;
+  padding: 6px;
   transition: transform 0.12s ease;
+  min-width: 68px;
 }
 
 .share-channel-item:active {
@@ -539,55 +539,42 @@ body {
 }
 
 .share-icon-wrap {
-  width: 48px;
-  height: 48px;
-  border-radius: 16px;
+  width: 56px;
+  height: 56px;
+  border-radius: 18px;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: filter 0.15s ease;
+  transition: all 0.15s ease;
   box-sizing: border-box;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
 .share-icon-wrap:hover {
   filter: brightness(0.96);
-}
-
-.share-icon-wrap.naver-outline {
-  background: #ffffff;
-  border: 1.5px solid #03c75a;
-}
-
-.share-icon-wrap.band-filled {
-  background: #06c755;
-}
-
-.share-icon-wrap.line-filled {
-  background: #06c755;
-  border-radius: 50%;
+  transform: translateY(-2px);
 }
 
 .share-icon-wrap.kakao-filled {
   background: #FEE500;
 }
 
-.share-icon-wrap.kakaostory-filled {
-  background: #e11d48;
+.share-icon-wrap.message-filled {
+  background: #22c55e;
 }
 
-.share-icon-wrap.twitter-filled {
-  background: #000000;
+.share-icon-wrap.link-filled {
+  background: #0284c7;
 }
 
-.share-icon-wrap.facebook-filled {
-  background: #1877F2;
-  border-radius: 50%;
+.share-icon-wrap.link-filled.is-copied {
+  background: #10b981;
 }
 
 .share-channel-label {
-  font-size: 12px;
-  font-weight: 600;
-  color: #475569;
+  font-size: 13px;
+  font-weight: 700;
+  color: #334155;
   letter-spacing: -0.2px;
   text-align: center;
 }
