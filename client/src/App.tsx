@@ -8,6 +8,7 @@ import { LobbyPage } from './pages/LobbyPage';
 import { ServerAdminPage } from './pages/ServerAdminPage';
 import { HeadAdminPage } from './pages/HeadAdminPage';
 import { ClubDetailPage } from './pages/ClubDetailPage';
+import { ShareButton } from './components/ShareButton';
 
 interface RouteState {
   page: 'login' | 'lobby' | 'club-detail' | 'head-admin' | 'server-admin';
@@ -348,6 +349,10 @@ export function App() {
         />
       )}
 
+      {/* Floating Share Button (Home / Club detail etc.) */}
+      {currentPage !== 'login' && currentPage !== 'server-admin' && (
+        <ShareButton />
+      )}
     </div>
   );
 }

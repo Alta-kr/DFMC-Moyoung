@@ -30,12 +30,14 @@ server/data/*.db-wal
 # IDE & OS files
 .vscode/
 .idea/
+.claude/
 .DS_Store
 Thumbs.db
 
 # Firebase & Local Scratch
 .firebase/
 scratch/
+docs/verification/
 
 # Server uploads & SQLite database
 server/database.sqlite
